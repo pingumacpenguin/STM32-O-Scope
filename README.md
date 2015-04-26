@@ -39,5 +39,7 @@ Since this is a software oscilloscope it would be fairly easy to change the way 
 
 In summary you can graph signals up to a theoretical maximum of around 83Khz (166,666 samples per second). Better time resolution, up to 2 Megasamples per second is possible, but would require some changes to the code, see "fast interleaved mode" for two channels in the STM32F10x reference manual.. Trigger on any significant change in signal and measure signals up to 3.3 Volts assuming that is how your particular STM32F103 board has its ADC configured. 
 
+Possible enhancements: Boost the speed up to the theoretical maximum, add a second channel (the STM32F103XXX has dual ADCs) and add a simple touch UI to select time base etc. 
+
 WARNING: This scope is not protected against excessive voltage in any way, add a high impedance attenuator and front end if you want to do anything outside of the limits of the STM32F103 otherwise you *will* release the magic smoke. 
 
