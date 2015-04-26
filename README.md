@@ -34,7 +34,10 @@ Resolution: Limited by the resolution of the ADC, quoted at 4096 samples over th
 
 Samples: Limited by the RAM on your STM32F103 for the STM32F103C8T6 you should be able to store >6 thousand samples, which surprisingly makes this better than some low end commercial offerings. 
 
-In summary you can graph signals up to a theoretical maximum of around 83Khz although better resolution (up to 2 Megasamples per second is possible, but would require some changes to the code). 
+Triggering: At the time of writing, the scope will trigger on a positive or negative change in voltage. This is simple, and works surprisingly well. 
+Since this is a software oscilloscope it would be fairly easy to change the way it triggers (+ve going, -ve going, trigger at a particular voltage etc), but since there is no user interface as yet, then triggering on any event is the most flexible method. 
 
-WARNING: This scope is not protected against excessive voltage in any way, add a high impedance attenuator and front end if you want to do anything outside of the limits of the STM32F103 otherwise you will release the magic smoke. 
+In summary you can graph signals up to a theoretical maximum of around 83Khz (166,666 samples per second). Better time resolution, up to 2 Megasamples per second is possible, but would require some changes to the code, see "fast interleaved mode" for two channels in the STM32F10x reference manual.. Trigger on any significant change in signal and measure signals up to 3.3 Volts assuming that is how your particular STM32F103 board has its ADC configured. 
+
+WARNING: This scope is not protected against excessive voltage in any way, add a high impedance attenuator and front end if you want to do anything outside of the limits of the STM32F103 otherwise you *will* release the magic smoke. 
 
