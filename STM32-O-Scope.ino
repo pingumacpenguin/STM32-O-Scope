@@ -1,4 +1,10 @@
 /*.
+(c) Andrew Hull - 2015 
+
+STM32-O-Scope - released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
+
+Adafruit Libraries released under their specific licenses Copyright (c) 2013 Adafruit Industries.  All rights reserved.
+
   Bill of materials.
   
   eBay links are for reference only, other suppliers may be better, cheaper or more reliable.. or any combination of those three.
@@ -111,6 +117,9 @@ void setup()
   analogWrite(TFT_LED, 63);
   
   // Square 3.3V (STM32 supply voltage) square wave at approx 500  Hz 
+  // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
+  // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
+  
   pinMode(TEST_WAVE_PIN, OUTPUT);
   analogWrite(TEST_WAVE_PIN, 127);
   
