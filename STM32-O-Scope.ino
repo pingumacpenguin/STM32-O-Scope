@@ -62,7 +62,7 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 #define PORTRAIT 0
 #define LANDSCAPE 1
 
-// create lcd object
+// Create the lcd object
 Adafruit_ILI9341 TFT = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
@@ -74,11 +74,12 @@ Adafruit_ILI9341 TFT = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST); // Using hardw
 #define BEAM_OFF_COLOUR ILI9341_BLACK
 #define CURSOR_COLOUR ILI9341_GREEN
 
-// Analog
+// Analog input
 const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
 float samplingTime = 0;
 
-// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
+// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6 
+// Bear in mind that the ILI9341 display is only able to display 340 pixels, but we can output far more to the serial port.  
 # define maxSamples 340
 
 // Variables for the beam position
@@ -116,7 +117,7 @@ void setup()
   pinMode(TFT_LED, OUTPUT);
   analogWrite(TFT_LED, 63);
   
-  // Square 3.3V (STM32 supply voltage) square wave at approx 500  Hz 
+  // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz 
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
   
@@ -161,7 +162,8 @@ void loop()
   blinkLED();
   //Blank  out previous plot
   TFTSamples(BEAM_OFF_COLOUR);
-  //clearTFT();
+  
+  // Show the Graticule and reset the trigger
   graticule();
   notTriggered = true;
 
@@ -169,20 +171,22 @@ void loop()
   samplingTime = micros();
   takeSamples();
   samplingTime = (((micros() - samplingTime) / maxSamples) * myWidth) / 10;
+  
   // Display the Labels ( uS/Div, Volts/Div etc).
   showLables();
+  
     //Display the samples
   TFTSamples(BEAM1_COLOUR);
   // Wait before allowing a re-trigger
   delay(retriggerDelay);
+  // DEBUG: increment the sweepDelayFactor slowly to show the effect. 
   sweepDelayFactor ++;
-
 }
 
 void graticule()
 {
   TFT.drawRect(0, 0, myHeight, myWidth, GRATICULE_COLOUR);
-  // Dot grid
+  // Dot grid - ten distinct divisions in both X and Y axis. 
   for (uint16_t TicksX = 1; TicksX < 11; TicksX++)
   {
     for (uint16_t TicksY = 1; TicksY < 11; TicksY++)
@@ -195,7 +199,6 @@ void graticule()
   {
     TFT.drawLine(  (myHeight / 2) - 2 , TicksX, (myHeight / 2) + 2, TicksX, GRATICULE_COLOUR);
   }
-
   for (uint16_t TicksY = 0; TicksY < myHeight; TicksY += 10 )
   {
     TFT.drawLine( TicksY,  (myWidth / 2) - 2 , TicksY, (myWidth / 2) + 2, GRATICULE_COLOUR);
@@ -239,22 +242,25 @@ void takeSamples ()
   for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
   {
     dataPoints[j] = analogRead(analogInPin);
-    // NPOP adding delay for accurate per interval sampling goes here...
-    // on my test STM32F103CXXX board with no optimisation I can hit <7uS per sample
+    
+    // Add NOP delay for reasonably accurate per interval sampling
+    // on my test STM32F103CXXX board with no optimisation analogRead can hit minimum <7uS per sample
     // the STM data sheet claims up to 1 mega samples per second for single mode ADC, so we
     // are in the right ballpark here.
-    // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample
-    // sweepDelay adds delay with a sub uS resolution
+    
+    // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy. 
+    
+    // sweepDelay adds delay factor with a sub uS resolution
     sweepDelay(sweepDelayFactor);
     //delayMicroseconds(13);
   }
 }
 
-// TODO: Add a dot mode as well as this line mode
+// TODO: Add a faster samples -> dot mode as well as the current line mode
 void TFTSamples (uint16_t beamColour)
 {
   // Display the samples scaled to fit the display, full scale fits between the graticules.
-  // TODO: Make points 0 and 4096 off the scale
+  // TODO: Make points 0 and 4096 off the scale i.e. not plotted
   for (uint16_t j = 0; j <= myWidth - 1 ; j++ )
   {
     signalX = j ;
@@ -270,7 +276,6 @@ void sweepDelay(unsigned long sweepDelay) {
   for (i = 0; i < sweepDelay; i++) {
     __asm__ __volatile__ ("nop");
   }
-
 }
 
 void showLables()
@@ -278,10 +283,11 @@ void showLables()
   TFT.setRotation(LANDSCAPE);
   TFT.setTextSize(1);
   TFT.setCursor(10, 210);
+  TFT.print("Y=");
   TFT.print(samplingTime);
   TFT.print(" uS/Div");
   TFT.setCursor(10, 220);
-  TFT.print("0.33v/Div");
+  TFT.print("X=0.33v/Div");
   TFT.setRotation(PORTRAIT);  
 }
 
