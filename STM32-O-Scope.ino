@@ -162,6 +162,7 @@ void loop()
   blinkLED();
   //Blank  out previous plot
   TFTSamples(BEAM_OFF_COLOUR);
+  showLabels();
   
   // Show the Graticule and reset the trigger
   graticule();
@@ -173,7 +174,7 @@ void loop()
   samplingTime = (((micros() - samplingTime) / maxSamples) * myWidth) / 10;
   
   // Display the Labels ( uS/Div, Volts/Div etc).
-  showLables();
+  showLabels();
   
     //Display the samples
   TFTSamples(BEAM1_COLOUR);
@@ -278,15 +279,15 @@ void sweepDelay(unsigned long sweepDelay) {
   }
 }
 
-void showLables()
+void showLabels()
 {
   TFT.setRotation(LANDSCAPE);
-  TFT.setTextSize(1);
-  TFT.setCursor(10, 210);
+  TFT.setTextSize(2);
+  TFT.setCursor(10, 190);
   TFT.print("Y=");
   TFT.print(samplingTime);
   TFT.print(" uS/Div");
-  TFT.setCursor(10, 220);
+  TFT.setCursor(10, 210);
   TFT.print("X=0.33v/Div");
   TFT.setRotation(PORTRAIT);  
 }
