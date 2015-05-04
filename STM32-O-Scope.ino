@@ -1,25 +1,25 @@
 /*.
-(c) Andrew Hull - 2015 
+(c) Andrew Hull - 2015
 
 STM32-O-Scope - released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
 
 Adafruit Libraries released under their specific licenses Copyright (c) 2013 Adafruit Industries.  All rights reserved.
 
   Bill of materials.
-  
+
   eBay links are for reference only, other suppliers may be better, cheaper or more reliable.. or any combination of those three.
-  ... pays yer money, you takes yer chance as they say. 
-  
+  ... pays yer money, you takes yer chance as they say.
+
   LCD TFT 2.2":  http://www.ebay.com/itm/2-2-inch-2-2-SPI-TFT-LCD-Display-module-240x320-ILI9341-51-AVR-STM32-ARM-PIC-/200939222521    Approx $5.25
-   or  
+   or
   LCD TFT w. Touch Screen http://www.ebay.com/itm/LCD-Touch-Panel-240x320-2-4-SPI-TFT-Serial-Port-Module-With-PBC-ILI9341-5V-3-3V-/291346921118?pt=LH_DefaultDomain_0&hash=item43d5a1369e Approx $6.60
    plus
   STM32F103C8T6 http://www.ebay.com/itm/STM32F103C8T6-ARM-STM32-Minimum-System-Development-Board-Module-for-Arduino-/271845944961?pt=LH_DefaultDomain_0&hash=item3f4b47ee81 Approx $4.59
-   plus 
+   plus
   DuPont Wire http://www.ebay.com/itm/40pcs-10cm-1p-1p-female-to-Female-jumper-wire-Dupont-cable-/121247597807?pt=LH_DefaultDomain_0&hash=item1c3aeb84ef Approx $0.99
-  
+
   Total cost Around $10-$15 or 3 x Cafe Latte Ventis in New York.. *other more accurate international fiscal standards are available.
-  
+
 */
 
 
@@ -27,6 +27,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #include "./Adafruit_GFX.h"
 
 #include <SPI.h>
+#include <SerialCommand.h>
 
 /* For reference on STM32F103CXXX
 
@@ -78,8 +79,8 @@ Adafruit_ILI9341 TFT = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST); // Using hardw
 const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
 float samplingTime = 0;
 
-// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6 
-// Bear in mind that the ILI9341 display is only able to display 340 pixels, but we can output far more to the serial port.  
+// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
+// Bear in mind that the ILI9341 display is only able to display 340 pixels, but we can output far more to the serial port.
 # define maxSamples 340
 
 // Variables for the beam position
@@ -96,36 +97,64 @@ int16_t myHeight ;
 bool notTriggered ;
 int16_t triggerSensitivity;
 int16_t retriggerDelay = 1000;
-
+bool onHold = false;
 // Array for the ADC data
 uint16_t dataPoints[maxSamples];
 
 //Array for trigger points
 uint16_t triggerPoints[2];
 
+// Create Serial Command Object.
+SerialCommand sCmd;
+
+USBSerial serial_debug;
+
+
+
 void setup()
 {
+  serial_debug.begin();
+
   // BOARD_LED blinks on triggering
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
   digitalWrite(BOARD_LED, HIGH);
 #endif
 
+  //
+  // Serial control setup
+  //Serial.begin(2000000);       // Max baudrade depends on port characteristics.
+
+  // Setup callbacks for SerialCommand commands
+  sCmd.addCommand("R",    triggerOn);          // Turns triggering on
+  sCmd.addCommand("H",   triggerOff);         // Turns triggering off
+  /*
+  sCmd.addCommand("UPLOAD", uploadSamples);      // Sends the most recent samples
+  sCmd.addCommand("TB+",    timeBasePlus);       // Sets Timebase next value
+  sCmd.addCommand("TB-",    timeBaseMinus);      // Sets Timebase previous 2
+  sCmd.addCommand("TB1",    timeBase1);          // Sets Timebase value 0 (fastest)
+  sCmd.addCommand("TB10,    timeBase10);         // Sets Timebase value 10
+  sCmd.addCommand("TB100",    timeBase100);      // Sets Timebase value 100
+  //
+  */
+  sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
+
+
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
   // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quouted as drawing 80mA at full brightness)
   // Alternatively, connect the backlight to 3v3 for an always on, bright display.
   pinMode(TFT_LED, OUTPUT);
-  analogWrite(TFT_LED, 63);
-  
-  // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz 
+  analogWrite(TFT_LED, 127);
+
+  // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-  
+
   pinMode(TEST_WAVE_PIN, OUTPUT);
   analogWrite(TEST_WAVE_PIN, 127);
-  
+
   // Set up our sensor pin(s)
-  pinMode(analogInPin, INPUT_ANALOG);                    
+  pinMode(analogInPin, INPUT_ANALOG);
 
   TFT.begin();
   // initialize the display
@@ -135,11 +164,11 @@ void setup()
   TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
   TFT.setCursor(0, 80);
   TFT.print(" STM-O-Scope by Andy Hull") ;
-  TFT.setCursor(0,100);
+  TFT.setCursor(0, 100);
   TFT.print("      Inspired by");
-  TFT.setCursor(0,120);
+  TFT.setCursor(0, 120);
   TFT.print("      Ray Burnette.");
-  TFT.setCursor(0,140);
+  TFT.setCursor(0, 140);
   TFT.print(" CH1 Probe STM32F Pin [");
   TFT.print(analogInPin);
   TFT.print("]");
@@ -148,7 +177,7 @@ void setup()
   myWidth  = TFT.height();
   graticule();
   delay(5000) ;
-  clearTFT();                
+  clearTFT();
 
   notTriggered = true;
   triggerSensitivity = 8 ;
@@ -157,37 +186,45 @@ void setup()
 
 void loop()
 {
-  // Wait for trigger
-  trigger();
-  blinkLED();
-  //Blank  out previous plot
-  TFTSamples(BEAM_OFF_COLOUR);
-  showLabels();
-  
-  // Show the Graticule and reset the trigger
-  graticule();
-  notTriggered = true;
+  //serial_debug.println("blah");
 
-  // Take our samples
-  samplingTime = micros();
-  takeSamples();
-  samplingTime = (((micros() - samplingTime) / maxSamples) * myWidth) / 10;
-  
-  // Display the Labels ( uS/Div, Volts/Div etc).
-  showLabels();
-  
+  sCmd.readSerial();     // Process serial commands
+
+  if ( !onHold )
+  {
+    // Wait for trigger
+    trigger();
+    blinkLED();
+    //Blank  out previous plot
+    TFTSamples(BEAM_OFF_COLOUR);
+    showLabels();
+
+    // Show the Graticule and reset the trigger
+    graticule();
+    notTriggered = true;
+
+    // Take our samples
+    samplingTime = micros();
+    takeSamples();
+    samplingTime = (((micros() - samplingTime) / maxSamples) * myWidth) / 10;
+
+    // Display the Labels ( uS/Div, Volts/Div etc).
+    showLabels();
+
     //Display the samples
-  TFTSamples(BEAM1_COLOUR);
+    TFTSamples(BEAM1_COLOUR);
+    serialSamples();
+  }
   // Wait before allowing a re-trigger
   delay(retriggerDelay);
-  // DEBUG: increment the sweepDelayFactor slowly to show the effect. 
+  // DEBUG: increment the sweepDelayFactor slowly to show the effect.
   sweepDelayFactor ++;
 }
 
 void graticule()
 {
   TFT.drawRect(0, 0, myHeight, myWidth, GRATICULE_COLOUR);
-  // Dot grid - ten distinct divisions in both X and Y axis. 
+  // Dot grid - ten distinct divisions in both X and Y axis.
   for (uint16_t TicksX = 1; TicksX < 11; TicksX++)
   {
     for (uint16_t TicksY = 1; TicksY < 11; TicksY++)
@@ -224,7 +261,7 @@ void trigger()
 
 void clearTFT()
 {
-  TFT.fillScreen(BEAM_OFF_COLOUR);                // Blank the display 
+  TFT.fillScreen(BEAM_OFF_COLOUR);                // Blank the display
 }
 
 void blinkLED()
@@ -237,20 +274,20 @@ void blinkLED()
 }
 
 // Grab the samples from the ADC as fast as Arduinoland will let us
-// Theoretically the ADC can do 2Ms/S but this would require some optimisation. 
+// Theoretically the ADC can do 2Ms/S but this would require some optimisation.
 void takeSamples ()
 {
   for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
   {
     dataPoints[j] = analogRead(analogInPin);
-    
+
     // Add NOP delay for reasonably accurate per interval sampling
     // on my test STM32F103CXXX board with no optimisation analogRead can hit minimum <7uS per sample
     // the STM data sheet claims up to 1 mega samples per second for single mode ADC, so we
     // are in the right ballpark here.
-    
-    // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy. 
-    
+
+    // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
+
     // sweepDelay adds delay factor with a sub uS resolution
     sweepDelay(sweepDelayFactor);
     //delayMicroseconds(13);
@@ -262,7 +299,7 @@ void TFTSamples (uint16_t beamColour)
 {
   // Display the samples scaled to fit the display, full scale fits between the graticules.
   // TODO: Make points 0 and 4096 off the scale i.e. not plotted
-  for (uint16_t j = 0; j <= myWidth - 1 ; j++ )
+  for (uint16_t j = 1; j <= myWidth - 1 ; j++ )
   {
     signalX = j ;
     signalY =  ((myHeight * dataPoints[j]) / 4096);
@@ -289,6 +326,40 @@ void showLabels()
   TFT.print(" uS/Div");
   TFT.setCursor(10, 210);
   TFT.print("X=0.33v/Div");
-  TFT.setRotation(PORTRAIT);  
+  TFT.setRotation(PORTRAIT);
+}
+
+void serialSamples ()
+{
+  // Send *all* of the samples to the serial port.
+  for (uint16_t j = 1; j <= maxSamples - 1 ; j++ )
+  {
+    //signalX = j ;
+    //signalY =  ((myHeight * dataPoints[j]) / 4096);
+    //signalY1 = ((myHeight * dataPoints[j + 1 ]) / 4096);
+    //TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
+    //serial_debug.print("\");
+    serial_debug.print(j);
+    serial_debug.print(",");
+    //serial_debug.print("\"");
+    serial_debug.print(dataPoints[j]);
+    serial_debug.print("\n");
+
+  }
+  serial_debug.print("\n");
+}
+
+void triggerOn() {
+  onHold = false ;
+  //serial_debug.println("Trigger ON");
+}
+
+void triggerOff() {
+  onHold = true ;
+  //serial_debug.println("Trigger OFF");
+}
+
+void unrecognized(const char *command) {
+  Serial.println("Unknown Command.");
 }
 

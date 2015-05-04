@@ -3,6 +3,8 @@ STM32F103 based minimalist oscilloscope.
 
 Based on the $10 Oscilloscope idea from Ray Burnette found here.. https://www.hackster.io/rayburne/10-arduino-o-scope
 
+A similar scope is documented here.. http://tomeko.net/miniscope_v2c/ .. so I can't claim originalty for anything here except for the code. 
+
 Bill of materials.
   
   eBay links are for reference only, other suppliers may be better, cheaper or more reliable.. or any combination of those three.
