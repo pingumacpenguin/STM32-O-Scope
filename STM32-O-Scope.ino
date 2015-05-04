@@ -88,7 +88,7 @@ uint16_t signalX ;
 uint16_t signalY ;
 uint16_t signalY1;
 
-uint32_t sweepDelayFactor = 0;
+unsigned long sweepDelayFactor = 1;
 
 // Screen dimensions
 int16_t myWidth ;
@@ -97,7 +97,9 @@ int16_t myHeight ;
 bool notTriggered ;
 int16_t triggerSensitivity;
 int16_t retriggerDelay = 1000;
+
 bool onHold = false;
+bool serialOutput = false;
 // Array for the ADC data
 uint16_t dataPoints[maxSamples];
 
@@ -126,8 +128,10 @@ void setup()
   //Serial.begin(2000000);       // Max baudrade depends on port characteristics.
 
   // Setup callbacks for SerialCommand commands
-  sCmd.addCommand("R",    triggerOn);          // Turns triggering on
-  sCmd.addCommand("H",   triggerOff);         // Turns triggering off
+  sCmd.addCommand("s",   toggleSerial);       // Turns serial sample output on/off
+  sCmd.addCommand("h",   toggleHold);         // Turns triggering on/off
+  sCmd.addCommand("i",   increaseTimebase);      // increase Timebase by 10x
+  sCmd.addCommand("d",   decreaseTimebase);      // decrease Timebase by 10x
   /*
   sCmd.addCommand("UPLOAD", uploadSamples);      // Sends the most recent samples
   sCmd.addCommand("TB+",    timeBasePlus);       // Sets Timebase next value
@@ -213,12 +217,15 @@ void loop()
 
     //Display the samples
     TFTSamples(BEAM1_COLOUR);
-    serialSamples();
+    if (serialOutput)
+    {
+      serialSamples();
+    }
   }
   // Wait before allowing a re-trigger
   delay(retriggerDelay);
   // DEBUG: increment the sweepDelayFactor slowly to show the effect.
-  sweepDelayFactor ++;
+  // sweepDelayFactor ++;
 }
 
 void graticule()
@@ -309,9 +316,9 @@ void TFTSamples (uint16_t beamColour)
 }
 
 // Run a bunch of NOOPs to trim the inter ADC conversion gap
-void sweepDelay(unsigned long sweepDelay) {
+void sweepDelay(unsigned long sweepDelayFactor) {
   volatile unsigned long i = 0;
-  for (i = 0; i < sweepDelay; i++) {
+  for (i = 0; i < sweepDelayFactor; i++) {
     __asm__ __volatile__ ("nop");
   }
 }
@@ -349,17 +356,39 @@ void serialSamples ()
   serial_debug.print("\n");
 }
 
-void triggerOn() {
-  onHold = false ;
+void toggleHold() {
+  onHold = !onHold ;
   //serial_debug.println("Trigger ON");
 }
 
-void triggerOff() {
-  onHold = true ;
+void toggleSerial() {
+  serialOutput = !serialOutput ;
   //serial_debug.println("Trigger OFF");
 }
 
 void unrecognized(const char *command) {
   Serial.println("Unknown Command.");
 }
+
+void decreaseTimebase() {
+
+  sweepDelayFactor =  sweepDelayFactor / 10 ;
+  if (sweepDelayFactor < 1 ) {
+    sweepDelayFactor = 1;
+  }
+
+  serial_debug.println(sweepDelayFactor);
+}
+
+void increaseTimebase() {
+  /*
+  if (sweepDelayFactor = 0 ){
+    sweepDelayFactor = 1;
+  }
+  */
+  sweepDelayFactor = 10 * sweepDelayFactor ;
+
+  serial_debug.println(sweepDelayFactor);
+}
+
 
