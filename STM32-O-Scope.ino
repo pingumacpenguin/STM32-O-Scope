@@ -81,7 +81,7 @@ float samplingTime = 0;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 340 pixels, but we can output far more to the serial port.
-# define maxSamples 340
+# define maxSamples 6000
 
 // Variables for the beam position
 uint16_t signalX ;
@@ -93,6 +93,7 @@ unsigned long sweepDelayFactor = 1;
 // Screen dimensions
 int16_t myWidth ;
 int16_t myHeight ;
+int16_t xZoomFactor;
 
 bool notTriggered ;
 int16_t triggerSensitivity;
@@ -130,8 +131,10 @@ void setup()
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("s",   toggleSerial);       // Turns serial sample output on/off
   sCmd.addCommand("h",   toggleHold);         // Turns triggering on/off
-  sCmd.addCommand("i",   increaseTimebase);      // increase Timebase by 10x
-  sCmd.addCommand("d",   decreaseTimebase);      // decrease Timebase by 10x
+  sCmd.addCommand("t",   decreaseTimebase);      // decrease Timebase by 10x
+  sCmd.addCommand("T",   increaseTimebase);      // increase Timebase by 10x
+  sCmd.addCommand("z",   decreaseZoomFactor);   // decrease Zoom
+  sCmd.addCommand("Z",   increaseZoomFactor);   // increase Zoom
   /*
   sCmd.addCommand("UPLOAD", uploadSamples);      // Sends the most recent samples
   sCmd.addCommand("TB+",    timeBasePlus);       // Sets Timebase next value
@@ -179,6 +182,7 @@ void setup()
   TFT.setRotation(PORTRAIT);
   myHeight   = TFT.width() ;
   myWidth  = TFT.height();
+  xZoomFactor = maxSamples / myWidth;
   graticule();
   delay(5000) ;
   clearTFT();
@@ -210,7 +214,7 @@ void loop()
     // Take our samples
     samplingTime = micros();
     takeSamples();
-    samplingTime = (((micros() - samplingTime) / maxSamples) * myWidth) / 10;
+    samplingTime = (((micros() - samplingTime) / maxSamples * 10) * maxSamples);
 
     // Display the Labels ( uS/Div, Volts/Div etc).
     showLabels();
@@ -304,14 +308,15 @@ void takeSamples ()
 // TODO: Add a faster samples -> dot mode as well as the current line mode
 void TFTSamples (uint16_t beamColour)
 {
+  signalX = 0;
   // Display the samples scaled to fit the display, full scale fits between the graticules.
   // TODO: Make points 0 and 4096 off the scale i.e. not plotted
-  for (uint16_t j = 1; j <= myWidth - 1 ; j++ )
+  for (uint16_t j = 1; j <= maxSamples - xZoomFactor ; j += xZoomFactor )
   {
-    signalX = j ;
     signalY =  ((myHeight * dataPoints[j]) / 4096);
-    signalY1 = ((myHeight * dataPoints[j + 1 ]) / 4096);
+    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096);
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
+    signalX += 1;
   }
 }
 
@@ -358,12 +363,12 @@ void serialSamples ()
 
 void toggleHold() {
   onHold = !onHold ;
-  //serial_debug.println("Trigger ON");
+  serial_debug.println("Toggle Hold");
 }
 
 void toggleSerial() {
   serialOutput = !serialOutput ;
-  //serial_debug.println("Trigger OFF");
+  serial_debug.println("Toggle Serial");
 }
 
 void unrecognized(const char *command) {
@@ -374,6 +379,8 @@ void decreaseTimebase() {
 
   sweepDelayFactor =  sweepDelayFactor / 10 ;
   if (sweepDelayFactor < 1 ) {
+    
+    serial_debug.print("Timebase=");
     sweepDelayFactor = 1;
   }
 
@@ -386,9 +393,26 @@ void increaseTimebase() {
     sweepDelayFactor = 1;
   }
   */
+  serial_debug.print("Timebase=");
   sweepDelayFactor = 10 * sweepDelayFactor ;
 
   serial_debug.println(sweepDelayFactor);
 }
 
+void increaseZoomFactor() {
+  if ( xZoomFactor < 18) {
+    xZoomFactor += 1;
+  }
+  serial_debug.print("Zoom=");
+  serial_debug.println(xZoomFactor);
+  clearTFT();
+}
 
+void decreaseZoomFactor() {
+  if (xZoomFactor > 1) {
+    xZoomFactor -= 1;
+  }
+  serial_debug.print("Zoom=");
+  serial_debug.println(xZoomFactor);
+  clearTFT();
+}
