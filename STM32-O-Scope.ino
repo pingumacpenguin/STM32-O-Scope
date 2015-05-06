@@ -214,7 +214,7 @@ void loop()
     // Take our samples
     samplingTime = micros();
     takeSamples();
-    samplingTime = (((micros() - samplingTime) / maxSamples * 10) * maxSamples);
+    samplingTime = (micros() - samplingTime);
 
     // Display the Labels ( uS/Div, Volts/Div etc).
     showLabels();
@@ -300,7 +300,7 @@ void takeSamples ()
     // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
 
     // sweepDelay adds delay factor with a sub uS resolution
-    sweepDelay(sweepDelayFactor);
+    //sweepDelay(sweepDelayFactor);
     //delayMicroseconds(13);
   }
 }
@@ -334,7 +334,7 @@ void showLabels()
   TFT.setTextSize(2);
   TFT.setCursor(10, 190);
   TFT.print("Y=");
-  TFT.print(samplingTime);
+  TFT.print((10*samplingTime*xZoomFactor)/maxSamples);
   TFT.print(" uS/Div");
   TFT.setCursor(10, 210);
   TFT.print("X=0.33v/Div");
