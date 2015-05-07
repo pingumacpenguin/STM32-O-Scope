@@ -23,8 +23,8 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 */
 
 
-#include "./Adafruit_ILI9341.h"
-#include "./Adafruit_GFX.h"
+#include "Adafruit_ILI9341_STM.h"
+#include "Adafruit_GFX_AS.h"
 
 #include <SPI.h>
 #include <SerialCommand.h>
@@ -64,7 +64,7 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 #define LANDSCAPE 1
 
 // Create the lcd object
-Adafruit_ILI9341 TFT = Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
+Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
 #define BOARD_LED PC13
