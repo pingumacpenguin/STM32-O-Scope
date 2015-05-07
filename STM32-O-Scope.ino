@@ -22,11 +22,12 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 
 */
 
-
 #include "Adafruit_ILI9341_STM.h"
 #include "Adafruit_GFX_AS.h"
 
 #include <SPI.h>
+
+// SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
 #include <SerialCommand.h>
 
 /* For reference on STM32F103CXXX
@@ -80,40 +81,44 @@ const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_
 float samplingTime = 0;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
-// Bear in mind that the ILI9341 display is only able to display 340 pixels, but we can output far more to the serial port.
-# define maxSamples 6000
+// Bear in mind that the ILI9341 display is only able to display 340 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
+# define maxSamples 1024*6
 uint16_t startSample = 0;
 uint16_t endSample = maxSamples ;
+// Array for the ADC data
+uint16_t dataPoints[maxSamples];
+
 // Variables for the beam position
 uint16_t signalX ;
 uint16_t signalY ;
 uint16_t signalY1;
+int16_t xZoomFactor = 1;
 
 unsigned long sweepDelayFactor = 1;
 
 // Screen dimensions
 int16_t myWidth ;
 int16_t myHeight ;
-int16_t xZoomFactor = 1;
 
+//Trigger stuff
 bool notTriggered ;
 int16_t triggerSensitivity;
 int16_t retriggerDelay = 1000;
 
-bool onHold = false;
-bool serialOutput = false;
-// Array for the ADC data
-uint16_t dataPoints[maxSamples];
-
 //Array for trigger points
 uint16_t triggerPoints[2];
+
+// Startup with sweep hold off
+bool onHold = false;
+
+// Serial output of samples - off by default. Toggled from UI/Serial commands.
+bool serialOutput = false;
 
 // Create Serial Command Object.
 SerialCommand sCmd;
 
+// Create USB serial port
 USBSerial serial_debug;
-
-
 
 void setup()
 {
@@ -126,29 +131,20 @@ void setup()
 #endif
 
   //
-  // Serial control setup
-  //Serial.begin(2000000);       // Max baudrade depends on port characteristics.
-
+  // Serial command setup
   // Setup callbacks for SerialCommand commands
-  sCmd.addCommand("s",   toggleSerial);       // Turns serial sample output on/off
-  sCmd.addCommand("h",   toggleHold);         // Turns triggering on/off
-  sCmd.addCommand("t",   decreaseTimebase);      // decrease Timebase by 10x
-  sCmd.addCommand("T",   increaseTimebase);      // increase Timebase by 10x
+  sCmd.addCommand("s",   toggleSerial);         // Turns serial sample output on/off
+  sCmd.addCommand("h",   toggleHold);           // Turns triggering on/off
+  sCmd.addCommand("t",   decreaseTimebase);     // decrease Timebase by 10x
+  sCmd.addCommand("T",   increaseTimebase);     // increase Timebase by 10x
   sCmd.addCommand("z",   decreaseZoomFactor);   // decrease Zoom
   sCmd.addCommand("Z",   increaseZoomFactor);   // increase Zoom
   sCmd.addCommand("r",   scrollRight);          // start onscreen trace further right
   sCmd.addCommand("l",   scrollLeft);           // start onscreen trae further left
   /*
-  sCmd.addCommand("UPLOAD", uploadSamples);      // Sends the most recent samples
-  sCmd.addCommand("TB+",    timeBasePlus);       // Sets Timebase next value
-  sCmd.addCommand("TB-",    timeBaseMinus);      // Sets Timebase previous 2
-  sCmd.addCommand("TB1",    timeBase1);          // Sets Timebase value 0 (fastest)
-  sCmd.addCommand("TB10,    timeBase10);         // Sets Timebase value 10
-  sCmd.addCommand("TB100",    timeBase100);      // Sets Timebase value 100
-  //
   */
+  
   sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
-
 
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
   // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quouted as drawing 80mA at full brightness)
