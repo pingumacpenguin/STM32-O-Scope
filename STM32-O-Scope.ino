@@ -72,7 +72,8 @@ Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Usi
 
 // Display colours
 #define BEAM1_COLOUR ILI9341_GREEN
-#define GRATICULE_COLOUR ILI9341_RED
+//#define GRATICULE_COLOUR ILI9341_RED
+#define GRATICULE_COLOUR 0x07FF
 #define BEAM_OFF_COLOUR ILI9341_BLACK
 #define CURSOR_COLOUR ILI9341_GREEN
 
@@ -102,8 +103,9 @@ int16_t myHeight ;
 
 //Trigger stuff
 bool notTriggered ;
-int16_t triggerSensitivity;
-int16_t retriggerDelay = 1000;
+int16_t triggerSensitivity = 512;
+int16_t retriggerDelay = 100;
+int8_t triggerType = 1;
 
 //Array for trigger points
 uint16_t triggerPoints[2];
@@ -141,9 +143,10 @@ void setup()
   sCmd.addCommand("Z",   increaseZoomFactor);   // increase Zoom
   sCmd.addCommand("r",   scrollRight);          // start onscreen trace further right
   sCmd.addCommand("l",   scrollLeft);           // start onscreen trae further left
+  sCmd.addCommand("e",   incEdgeType);          // increment the trigger edge type 0 1 2 0 1 2 etc
   /*
   */
-  
+
   sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
 
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
@@ -187,8 +190,9 @@ void setup()
   clearTFT();
 
   notTriggered = true;
-  triggerSensitivity = 8 ;
+  //triggerSensitivity = 16 ;
   graticule();
+  showLabels();
 }
 
 void loop()
@@ -201,28 +205,31 @@ void loop()
   {
     // Wait for trigger
     trigger();
-    blinkLED();
-    //Blank  out previous plot
-    TFTSamples(BEAM_OFF_COLOUR);
-    showLabels();
-
-    // Show the Graticule and reset the trigger
-    graticule();
-    notTriggered = true;
-
-    // Take our samples
-    samplingTime = micros();
-    takeSamples();
-    samplingTime = (micros() - samplingTime);
-
-    // Display the Labels ( uS/Div, Volts/Div etc).
-    showLabels();
-
-    //Display the samples
-    TFTSamples(BEAM1_COLOUR);
-    if (serialOutput)
+    if ( !notTriggered )
     {
-      serialSamples();
+      blinkLED();
+      //Blank  out previous plot
+      TFTSamples(BEAM_OFF_COLOUR);
+      showLabels();
+
+      // Show the Graticule
+      graticule();
+      //notTriggered = true;
+
+      // Take our samples
+      samplingTime = micros();
+      takeSamples();
+      samplingTime = (micros() - samplingTime);
+
+      // Display the Labels ( uS/Div, Volts/Div etc).
+      showLabels();
+
+      //Display the samples
+      TFTSamples(BEAM1_COLOUR);
+      if (serialOutput)
+      {
+        serialSamples();
+      }
     }
   }
   // Wait before allowing a re-trigger
@@ -243,30 +250,76 @@ void graticule()
     }
   }
   // Horizontal and Vertical centre lines
-  for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += 10 )
+  for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += (myHeight/50))
   {
     TFT.drawLine(  (myHeight / 2) - 2 , TicksX, (myHeight / 2) + 2, TicksX, GRATICULE_COLOUR);
   }
-  for (uint16_t TicksY = 0; TicksY < myHeight; TicksY += 10 )
+  for (uint16_t TicksY = 0; TicksY < myHeight; TicksY += (myHeight/50) )
   {
     TFT.drawLine( TicksY,  (myWidth / 2) - 2 , TicksY, (myWidth / 2) + 2, GRATICULE_COLOUR);
   }
 
 }
 
-// Crude triggering on positive or negative change from previous to current sample.
+// Crude triggering on positive or negative or either change from previous to current sample.
 void trigger()
 {
-  triggerPoints[0] = map(analogRead(analogInPin),  0,  4095,  myHeight - 1,  1   ) ;;
-  triggerPoints[1] = triggerPoints[0];
-  while (notTriggered) {
-    triggerPoints[1] = map(analogRead(analogInPin),  0,  4095,  myHeight - 1,  1   ) ;
-    if (((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) or ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity))
-    {
-      notTriggered = false;
-    }
-    triggerPoints[0] = triggerPoints[1];
+  for (uint16_t j = 0; j <= 10 ; j++ )
+  {
+    analogRead(analogInPin);
   }
+  notTriggered = true;
+  switch (triggerType) {
+    case 1:
+      triggerNegative() ;
+      break;
+    case 2:
+      triggerPositive() ;
+      break;
+    default:
+      triggerBoth() ;
+      break;
+  }
+}
+
+void triggerBoth()
+{
+  triggerPoints[0] = analogRead(analogInPin);
+  delayMicroseconds(20);
+  if (((analogRead(analogInPin) - triggerPoints[0] ) < triggerSensitivity) and ((triggerPoints[0] - analogRead(analogInPin) ) < triggerSensitivity)) {
+    notTriggered = false ;
+  }
+}
+
+void triggerPositive() {
+//  triggerPoints[0] = analogRead(analogInPin);
+//  delayMicroseconds(20);
+  triggerPoints[1]=analogRead(analogInPin);
+  if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
+  notTriggered = false;
+  }
+triggerPoints[0] = analogRead(analogInPin);
+}
+
+void triggerNegative() {
+//  triggerPoints[0] = analogRead(analogInPin);
+//  delayMicroseconds(20);
+  triggerPoints[1]=analogRead(analogInPin);
+  if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
+  notTriggered = false;
+  }
+triggerPoints[0] = analogRead(analogInPin);
+}
+
+void incEdgeType() {
+  triggerType += 1;
+  if (triggerType > 2)
+  {
+    triggerType = 0;
+  }
+  serial_debug.println(triggerPoints[0]);
+  serial_debug.println(triggerPoints[1]);
+  serial_debug.println(triggerType);
 }
 
 void clearTFT()
@@ -281,12 +334,17 @@ void blinkLED()
   delay(10);
   digitalWrite(BOARD_LED, HIGH);
 #endif
+
 }
 
 // Grab the samples from the ADC as fast as Arduinoland will let us
 // Theoretically the ADC can do 2Ms/S but this would require some optimisation.
 void takeSamples ()
 {
+  for (uint16_t j = 0; j <= 10 ; j++ )
+  {
+    analogRead(analogInPin);
+  }
   for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
   {
     dataPoints[j] = analogRead(analogInPin);
@@ -334,7 +392,7 @@ void showLabels()
   TFT.setTextSize(2);
   TFT.setCursor(10, 190);
   TFT.print("Y=");
-  TFT.print((10 * samplingTime * xZoomFactor) / maxSamples);
+  TFT.print((samplingTime * xZoomFactor) / maxSamples);
   TFT.print(" uS/Div");
   TFT.setCursor(10, 210);
   TFT.print("X=0.33v/Div");
