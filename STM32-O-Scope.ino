@@ -342,13 +342,20 @@ void blinkLED()
 // Theoretically the ADC can do 2Ms/S but this would require some optimisation.
 void takeSamples ()
 {
+  /*
   for (uint16_t j = 0; j <= 10 ; j++ )
   {
     analogRead(analogInPin);
   }
+  */
+  // In effect I have unwrapped analogRead() into its component parts here to speef things up. 
+  // this avoids the need to check the pinmap every time we go round the loop.  
+  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
+  int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
   for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
   {
-    dataPoints[j] = analogRead(analogInPin);
+    dataPoints[j] = adc_read(dev, pinMapPB0);
+    // dataPoints[j] = analogRead(analogInPin);
 
     // Add NOP delay for reasonably accurate per interval sampling
     // on my test STM32F103CXXX board with no optimisation analogRead can hit minimum <7uS per sample
@@ -359,8 +366,8 @@ void takeSamples ()
 
     // sweepDelay adds delay factor with a sub uS resolution
     //
-    sweepDelay(sweepDelayFactor);
-    //delayMicroseconds(13);
+    //sweepDelay(sweepDelayFactor);
+    //delayMicroseconds(1);
   }
 }
 
@@ -401,6 +408,8 @@ void showLabels()
   TFT.print(" uS ");
   TFT.setCursor(10, 210);
   TFT.print("1.0v/Div ");
+  TFT.print(samplingTime);
+  TFT.print(" ");
   TFT.setRotation(PORTRAIT);
 }
 
