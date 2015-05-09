@@ -3,22 +3,9 @@
 
 STM32-O-Scope - released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
 
+https://github.com/pingumacpenguin/STM32-O-Scope 
+
 Adafruit Libraries released under their specific licenses Copyright (c) 2013 Adafruit Industries.  All rights reserved.
-
-  Bill of materials.
-
-  eBay links are for reference only, other suppliers may be better, cheaper or more reliable.. or any combination of those three.
-  ... pays yer money, you takes yer chance as they say.
-
-  LCD TFT 2.2":  http://www.ebay.com/itm/2-2-inch-2-2-SPI-TFT-LCD-Display-module-240x320-ILI9341-51-AVR-STM32-ARM-PIC-/200939222521    Approx $5.25
-   or
-  LCD TFT w. Touch Screen http://www.ebay.com/itm/LCD-Touch-Panel-240x320-2-4-SPI-TFT-Serial-Port-Module-With-PBC-ILI9341-5V-3-3V-/291346921118?pt=LH_DefaultDomain_0&hash=item43d5a1369e Approx $6.60
-   plus
-  STM32F103C8T6 http://www.ebay.com/itm/STM32F103C8T6-ARM-STM32-Minimum-System-Development-Board-Module-for-Arduino-/271845944961?pt=LH_DefaultDomain_0&hash=item3f4b47ee81 Approx $4.59
-   plus
-  DuPont Wire http://www.ebay.com/itm/40pcs-10cm-1p-1p-female-to-Female-jumper-wire-Dupont-cable-/121247597807?pt=LH_DefaultDomain_0&hash=item1c3aeb84ef Approx $0.99
-
-  Total cost Around $10-$15 or 3 x Cafe Latte Ventis in New York.. *other more accurate international fiscal standards are available.
 
 */
 
@@ -104,7 +91,7 @@ int16_t myHeight ;
 //Trigger stuff
 bool notTriggered ;
 int16_t triggerSensitivity = 512;
-int16_t retriggerDelay = 100;
+int16_t retriggerDelay = 10;
 int8_t triggerType = 1;
 
 //Array for trigger points
@@ -126,7 +113,7 @@ void setup()
 {
   serial_debug.begin();
 
-  // BOARD_LED blinks on triggering
+  // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch. 
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
   digitalWrite(BOARD_LED, HIGH);
@@ -250,15 +237,29 @@ void graticule()
     }
   }
   // Horizontal and Vertical centre lines
-  for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += (myHeight/50))
+  for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += (myHeight / 50))
   {
-    TFT.drawLine(  (myHeight / 2) - 2 , TicksX, (myHeight / 2) + 2, TicksX, GRATICULE_COLOUR);
-  }
-  for (uint16_t TicksY = 0; TicksY < myHeight; TicksY += (myHeight/50) )
-  {
-    TFT.drawLine( TicksY,  (myWidth / 2) - 2 , TicksY, (myWidth / 2) + 2, GRATICULE_COLOUR);
-  }
+    if (TicksX % (myWidth / 10) > 0 )
+    {
+      TFT.drawLine(  (myHeight / 2) - 2 , TicksX, (myHeight / 2) + 2, TicksX, GRATICULE_COLOUR);
+    }
+    else
+    {
+      TFT.drawLine(  (myHeight / 2) - 6 , TicksX, (myHeight / 2) + 6, TicksX, GRATICULE_COLOUR);
+    }
 
+  }
+  for (uint16_t TicksY = 0; TicksY < myHeight; TicksY += (myHeight / 50) )
+  {
+    if (TicksY % (myHeight / 10) > 0 )
+    {
+      TFT.drawLine( TicksY,  (myWidth / 2) - 2 , TicksY, (myWidth / 2) + 2, GRATICULE_COLOUR);
+    }
+    else
+    {
+      TFT.drawLine( TicksY,  (myWidth / 2) - 5 , TicksY, (myWidth / 2) + 5, GRATICULE_COLOUR);
+    }
+  }
 }
 
 // Crude triggering on positive or negative or either change from previous to current sample.
@@ -292,23 +293,23 @@ void triggerBoth()
 }
 
 void triggerPositive() {
-//  triggerPoints[0] = analogRead(analogInPin);
-//  delayMicroseconds(20);
-  triggerPoints[1]=analogRead(analogInPin);
+  //  triggerPoints[0] = analogRead(analogInPin);
+  //  delayMicroseconds(20);
+  triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
-  notTriggered = false;
+    notTriggered = false;
   }
-triggerPoints[0] = analogRead(analogInPin);
+  triggerPoints[0] = analogRead(analogInPin);
 }
 
 void triggerNegative() {
-//  triggerPoints[0] = analogRead(analogInPin);
-//  delayMicroseconds(20);
-  triggerPoints[1]=analogRead(analogInPin);
+  //  triggerPoints[0] = analogRead(analogInPin);
+  //  delayMicroseconds(20);
+  triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
-  notTriggered = false;
+    notTriggered = false;
   }
-triggerPoints[0] = analogRead(analogInPin);
+  triggerPoints[0] = analogRead(analogInPin);
 }
 
 void incEdgeType() {
@@ -363,16 +364,20 @@ void takeSamples ()
   }
 }
 
-// TODO: Add a faster samples -> dot mode as well as the current line mode
 void TFTSamples (uint16_t beamColour)
 {
   signalX = 0;
+  
   // Display the samples scaled to fit the display, full scale fits between the graticules.
   // TODO: Make points 0 and 4096 off the scale i.e. not plotted
   for (uint16_t j = startSample; j <= endSample - xZoomFactor ; j += xZoomFactor )
   {
-    signalY =  ((myHeight * dataPoints[j]) / 4096);
-    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096);
+    // Hack: Attenuation value estimated for a 1M Ohm resistor in series with analog pin.
+    //       from a straw pole of one sample resistor this gives an attenuation factor of 717/1000
+    //       calibrated using an estimated 3v3 PMW signal on the test pin.
+    //       Clearly there are better ways to do this, but close enough is good enough on a screen with a resolution of a mere 240 pixels high.
+    signalY =  ((myHeight * dataPoints[j]) / 4096) * 717 / 1000;
+    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096) * 717 / 1000;
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     signalX += 1;
   }
@@ -391,11 +396,11 @@ void showLabels()
   TFT.setRotation(LANDSCAPE);
   TFT.setTextSize(2);
   TFT.setCursor(10, 190);
-  TFT.print("Y=");
+  // TFT.print("Y=");
   TFT.print((samplingTime * xZoomFactor) / maxSamples);
-  TFT.print(" uS/Div");
+  TFT.print(" uS ");
   TFT.setCursor(10, 210);
-  TFT.print("X=0.33v/Div");
+  TFT.print("1.0v/Div ");
   TFT.setRotation(PORTRAIT);
 }
 
