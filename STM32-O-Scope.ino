@@ -71,7 +71,7 @@ float samplingTime = 0;
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 340 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
 # define maxSamples 1024*6
-uint16_t startSample = 0;
+uint16_t startSample = 10;
 uint16_t endSample = maxSamples ;
 // Array for the ADC data
 uint16_t dataPoints[maxSamples];
@@ -352,6 +352,8 @@ void takeSamples ()
   // this avoids the need to check the pinmap every time we go round the loop.  
   const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
   int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
+  adc_set_sample_rate(dev, ADC_SMPR_13_5);
+  
   for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
   {
     dataPoints[j] = adc_read(dev, pinMapPB0);
@@ -383,8 +385,8 @@ void TFTSamples (uint16_t beamColour)
     //       from a straw pole of one sample resistor this gives an attenuation factor of 717/1000
     //       calibrated using an estimated 3v3 PMW signal on the test pin.
     //       Clearly there are better ways to do this, but close enough is good enough on a screen with a resolution of a mere 240 pixels high.
-    signalY =  ((myHeight * dataPoints[j]) / 4096) * 717 / 1000;
-    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096) * 717 / 1000;
+    signalY =  ((myHeight * dataPoints[j]) / 4096) ;
+    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096) ;
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     signalX += 1;
   }
