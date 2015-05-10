@@ -348,28 +348,27 @@ void takeSamples ()
     analogRead(analogInPin);
   }
   */
-  // In effect I have unwrapped analogRead() into its component parts here to speef things up. 
+  // In effect I have unwrapped analogRead() into its component parts here to speed things up. 
   // this avoids the need to check the pinmap every time we go round the loop.  
   const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
   int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
   adc_set_sample_rate(dev, ADC_SMPR_13_5);
+  adc_reg_map *regs = dev->regs;
+  adc_set_reg_seqlen(dev, 1);
+  regs->SQR3 = pinMapPB0;
   
-  for (uint16_t j = 0; j <= maxSamples - 1 ; j++ )
+  for (uint16_t j = 0; j <= maxSamples  ; j++ )
   {
-    dataPoints[j] = adc_read(dev, pinMapPB0);
-    // dataPoints[j] = analogRead(analogInPin);
-
-    // Add NOP delay for reasonably accurate per interval sampling
-    // on my test STM32F103CXXX board with no optimisation analogRead can hit minimum <7uS per sample
-    // the STM data sheet claims up to 1 mega samples per second for single mode ADC, so we
-    // are in the right ballpark here.
+    regs->CR2 |= ADC_CR2_SWSTART;
+    while (!(regs->SR & ADC_SR_EOC))
+        ;
+    dataPoints[j]=(regs->DR & ADC_DR_DATA);
 
     // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
 
-    // sweepDelay adds delay factor with a sub uS resolution
+    // sweepDelay adds delay factor with a sub microsecond resolution we would of course be better using an ISR and DMA for the ADC
     //
     //sweepDelay(sweepDelayFactor);
-    //delayMicroseconds(1);
   }
 }
 
