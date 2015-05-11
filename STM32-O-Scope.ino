@@ -213,10 +213,12 @@ void loop()
 
       //Display the samples
       TFTSamples(BEAM1_COLOUR);
+      /*
       if (serialOutput)
       {
         serialSamples();
       }
+      */
     }
   }
   // Wait before allowing a re-trigger
@@ -427,15 +429,20 @@ void showLabels()
 void serialSamples ()
 {
   // Send *all* of the samples to the serial port.
-  for (uint16_t j = 1; j <= maxSamples - 1 ; j++ )
+  for (uint16_t j = 0; j < maxSamples  ; j++ )
   {
     //signalX = j ;
     //signalY =  ((myHeight * dataPoints[j]) / 4096);
     //signalY1 = ((myHeight * dataPoints[j + 1 ]) / 4096);
     //TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     //serial_debug.print("\");
-    serial_debug.print(j);
-    serial_debug.print(",");
+    // Time from trigger in milliseconds
+    serial_debug.print((samplingTime/(maxSamples))*j);
+    serial_debug.print(" ");
+    /*
+    serial_debug.print(maxSamples);
+    serial_debug.print(" ");
+    */
     //serial_debug.print("\"");
     serial_debug.print(dataPoints[j]);
     serial_debug.print("\n");
@@ -481,7 +488,7 @@ void increaseTimebase() {
 
 void increaseZoomFactor() {
   clearTrace();
-  if ( xZoomFactor < 18) {
+  if ( xZoomFactor < 21) {
     xZoomFactor += 1;
   }
   showTrace();
