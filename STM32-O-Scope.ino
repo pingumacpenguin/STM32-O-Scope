@@ -69,7 +69,7 @@ const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_
 float samplingTime = 0;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
-// Bear in mind that the ILI9341 display is only able to display 340 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
+// Bear in mind that the ILI9341 display is only able to display 320 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
 # define maxSamples 1024*6
 uint16_t startSample = 10;
 uint16_t endSample = maxSamples ;
@@ -228,15 +228,15 @@ void loop()
 void graticule()
 {
   TFT.drawRect(0, 0, myHeight, myWidth, GRATICULE_COLOUR);
-  // Dot grid - ten distinct divisions in both X and Y axis.
-  for (uint16_t TicksX = 1; TicksX < 11; TicksX++)
+  // Dot grid - ten distinct divisions (9 dots) in both X and Y axis.
+  for (uint16_t TicksX = 1; TicksX < 10; TicksX++)
   {
-    for (uint16_t TicksY = 1; TicksY < 11; TicksY++)
+    for (uint16_t TicksY = 1; TicksY < 10; TicksY++)
     {
       TFT.drawPixel(  TicksX * (myHeight / 10), TicksY * (myWidth / 10), GRATICULE_COLOUR);
     }
   }
-  // Horizontal and Vertical centre lines
+  // Horizontal and Vertical centre lines 5 ticks per grid square with a longer tick in line with our dots 
   for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += (myHeight / 50))
   {
     if (TicksX % (myWidth / 10) > 0 )
@@ -264,11 +264,13 @@ void graticule()
 
 // Crude triggering on positive or negative or either change from previous to current sample.
 void trigger()
-{
+{ 
+  /*
   for (uint16_t j = 0; j <= 10 ; j++ )
   {
     analogRead(analogInPin);
   }
+  */
   notTriggered = true;
   switch (triggerType) {
     case 1:
@@ -406,11 +408,19 @@ void showLabels()
   TFT.setCursor(10, 190);
   // TFT.print("Y=");
   TFT.print((samplingTime * xZoomFactor) / maxSamples);
-  TFT.print(" uS ");
+  TFT.setTextSize(1);
+  TFT.print(" uS/Div ");
+  TFT.setTextSize(2);
   TFT.setCursor(10, 210);
-  TFT.print("1.0v/Div ");
+  TFT.print("1.0");
+  TFT.setTextSize(1);
+  TFT.print(" v/Div ");
+  TFT.setTextSize(2);
   TFT.print(samplingTime);
-  TFT.print(" ");
+  TFT.setTextSize(1);
+  TFT.print(" us for ");
+  TFT.print(maxSamples);
+  TFT.print(" samples ");
   TFT.setRotation(PORTRAIT);
 }
 
