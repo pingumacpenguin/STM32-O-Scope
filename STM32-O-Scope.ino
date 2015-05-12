@@ -3,7 +3,7 @@
 
 STM32-O-Scope - released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
 
-https://github.com/pingumacpenguin/STM32-O-Scope 
+https://github.com/pingumacpenguin/STM32-O-Scope
 
 Adafruit Libraries released under their specific licenses Copyright (c) 2013 Adafruit Industries.  All rights reserved.
 
@@ -65,12 +65,13 @@ Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Usi
 #define CURSOR_COLOUR ILI9341_GREEN
 
 // Analog input
+#define ANALOG_MAX_VALUE 4096
 const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
 float samplingTime = 0;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 320 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
-# define maxSamples 1024*6
+# define maxSamples 1024*7
 uint16_t startSample = 10;
 uint16_t endSample = maxSamples ;
 // Array for the ADC data
@@ -81,6 +82,7 @@ uint16_t signalX ;
 uint16_t signalY ;
 uint16_t signalY1;
 int16_t xZoomFactor = 1;
+int16_t yPosition = -20 ;
 
 unsigned long sweepDelayFactor = 1;
 
@@ -113,7 +115,7 @@ void setup()
 {
   serial_debug.begin();
 
-  // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch. 
+  // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
   digitalWrite(BOARD_LED, HIGH);
@@ -131,11 +133,14 @@ void setup()
   sCmd.addCommand("r",   scrollRight);          // start onscreen trace further right
   sCmd.addCommand("l",   scrollLeft);           // start onscreen trae further left
   sCmd.addCommand("e",   incEdgeType);          // increment the trigger edge type 0 1 2 0 1 2 etc
+  sCmd.addCommand("y",   decreaseYposition);    // move trace Down 
+  sCmd.addCommand("Y",   increaseYposition);    // move trace Down
+  sCmd.addCommand("ATAT",  atAt);                // Mystery command... what is this rubbish in the buffer?
   /*
   */
 
   sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
-
+  //sCmd.clearBuffer();
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
   // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quouted as drawing 80mA at full brightness)
   // Alternatively, connect the backlight to 3v3 for an always on, bright display.
@@ -180,6 +185,7 @@ void setup()
   //triggerSensitivity = 16 ;
   graticule();
   showLabels();
+  //serial_debug.flush();
 }
 
 void loop()
@@ -238,7 +244,7 @@ void graticule()
       TFT.drawPixel(  TicksX * (myHeight / 10), TicksY * (myWidth / 10), GRATICULE_COLOUR);
     }
   }
-  // Horizontal and Vertical centre lines 5 ticks per grid square with a longer tick in line with our dots 
+  // Horizontal and Vertical centre lines 5 ticks per grid square with a longer tick in line with our dots
   for (uint16_t TicksX = 0; TicksX < myWidth; TicksX += (myHeight / 50))
   {
     if (TicksX % (myWidth / 10) > 0 )
@@ -266,7 +272,7 @@ void graticule()
 
 // Crude triggering on positive or negative or either change from previous to current sample.
 void trigger()
-{ 
+{
   /*
   for (uint16_t j = 0; j <= 10 ; j++ )
   {
@@ -352,21 +358,21 @@ void takeSamples ()
     analogRead(analogInPin);
   }
   */
-  // In effect I have unwrapped analogRead() into its component parts here to speed things up. 
-  // this avoids the need to check the pinmap every time we go round the loop.  
+  // In effect I have unwrapped analogRead() into its component parts here to speed things up.
+  // this avoids the need to check the pinmap every time we go round the loop.
   const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
   int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
   adc_set_sample_rate(dev, ADC_SMPR_1_5);
   adc_reg_map *regs = dev->regs;
   adc_set_reg_seqlen(dev, 1);
   regs->SQR3 = pinMapPB0;
-  
+
   for (uint16_t j = 0; j <= maxSamples  ; j++ )
   {
     regs->CR2 |= ADC_CR2_SWSTART;
     while (!(regs->SR & ADC_SR_EOC))
-        ;
-    dataPoints[j]=(regs->DR & ADC_DR_DATA);
+      ;
+    dataPoints[j] = (regs->DR & ADC_DR_DATA);
 
     // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
 
@@ -378,22 +384,16 @@ void takeSamples ()
 
 void TFTSamples (uint16_t beamColour)
 {
-  signalX = 0;
-  
-  // Display the samples scaled to fit the display, full scale fits between the graticules.
-  // TODO: Make points 0 and 4096 off the scale i.e. not plotted
-  for (uint16_t j = startSample; j <= endSample - xZoomFactor ; j += xZoomFactor )
+  signalX = 1;
+  while (signalX < myWidth - 2)
   {
-    // Hack: Attenuation value estimated for a 1M Ohm resistor in series with analog pin.
-    //       from a straw pole of one sample resistor this gives an attenuation factor of 717/1000
-    //       calibrated using an estimated 3v3 PMW signal on the test pin.
-    //       Clearly there are better ways to do this, but close enough is good enough on a screen with a resolution of a mere 240 pixels high.
-    signalY =  ((myHeight * dataPoints[j]) / 4096) *150/100 ;
-    signalY1 = ((myHeight * dataPoints[j + xZoomFactor ]) / 4096) *150/100;
+    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / myWidth) ]) / ANALOG_MAX_VALUE) + yPosition;
+    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / myWidth)]) / ANALOG_MAX_VALUE) + yPosition ;
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     signalX += 1;
   }
 }
+
 
 // Run a bunch of NOOPs to trim the inter ADC conversion gap
 void sweepDelay(unsigned long sweepDelayFactor) {
@@ -416,7 +416,7 @@ void showLabels()
   TFT.setCursor(10, 210);
   TFT.print("1.0");
   TFT.setTextSize(1);
-  TFT.print(" v/Div ");
+  TFT.print(" V/Div ");
   TFT.setTextSize(2);
   TFT.print(samplingTime);
   TFT.setTextSize(1);
@@ -431,19 +431,11 @@ void serialSamples ()
   // Send *all* of the samples to the serial port.
   for (uint16_t j = 0; j < maxSamples  ; j++ )
   {
-    //signalX = j ;
-    //signalY =  ((myHeight * dataPoints[j]) / 4096);
-    //signalY1 = ((myHeight * dataPoints[j + 1 ]) / 4096);
-    //TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
-    //serial_debug.print("\");
+
     // Time from trigger in milliseconds
-    serial_debug.print((samplingTime/(maxSamples))*j);
+    serial_debug.print((samplingTime / (maxSamples))*j);
     serial_debug.print(" ");
-    /*
-    serial_debug.print(maxSamples);
-    serial_debug.print(" ");
-    */
-    //serial_debug.print("\"");
+    // raw ADC data
     serial_debug.print(dataPoints[j]);
     serial_debug.print("\n");
 
@@ -463,7 +455,9 @@ void toggleSerial() {
 }
 
 void unrecognized(const char *command) {
-  Serial.println("Unknown Command.");
+  serial_debug.print("Unknown Command.[");
+  serial_debug.print(command);
+  serial_debug.println("]");
 }
 
 void decreaseTimebase() {
@@ -542,3 +536,28 @@ void scrollLeft() {
 
 }
 
+void increaseYposition() {
+
+  if (yPosition < myHeight ) {
+    clearTrace();
+    yPosition ++;
+    showTrace();
+  } 
+  Serial.print("yPosition=");
+  Serial.println(yPosition);
+}
+
+void decreaseYposition() {
+
+  if (yPosition > -myHeight ) {
+    clearTrace();
+    yPosition --;
+    showTrace();
+  }
+  Serial.print("yPosition=");
+  Serial.println(yPosition);
+}
+
+void atAt() {
+  serial_debug.println("Hello");
+}
