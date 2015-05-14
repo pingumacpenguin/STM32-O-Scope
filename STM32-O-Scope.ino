@@ -70,7 +70,7 @@ const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_
 float samplingTime = 0;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
-// Bear in mind that the ILI9341 display is only able to display 320 pixels, at any time but we can output far more to the serial port, and show a window on our samples on the TFT.
+// Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
 # define maxSamples 1024*7
 uint16_t startSample = 10;
 uint16_t endSample = maxSamples ;
@@ -135,6 +135,8 @@ void setup()
   sCmd.addCommand("e",   incEdgeType);          // increment the trigger edge type 0 1 2 0 1 2 etc
   sCmd.addCommand("y",   decreaseYposition);    // move trace Down 
   sCmd.addCommand("Y",   increaseYposition);    // move trace Down
+  sCmd.addCommand("P",   toggleTestPulseOn);    // Toggle the test pulse pin from high impedence input to square wave output.
+  sCmd.addCommand("p",   toggleTestPulseOff);   // Toggle the Test pin from square wave test to high impedence input.
   sCmd.addCommand("ATAT",  atAt);                // Mystery command... what is this rubbish in the buffer?
   /*
   */
@@ -147,12 +149,12 @@ void setup()
   pinMode(TFT_LED, OUTPUT);
   analogWrite(TFT_LED, 127);
 
+
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-
-  pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 127);
+  timer_set_period(Timer3,1250);
+  toggleTestPulseOn();
 
   // Set up our sensor pin(s)
   pinMode(analogInPin, INPUT_ANALOG);
@@ -560,4 +562,30 @@ void decreaseYposition() {
 
 void atAt() {
   serial_debug.println("Hello");
+}
+
+void toggleTestPulseOn (){
+  pinMode(TEST_WAVE_PIN, OUTPUT);
+  analogWrite(TEST_WAVE_PIN, 127);
+    serial_debug.println("Test Pulse On.");
+}
+
+void toggleTestPulseOff (){
+  pinMode(TEST_WAVE_PIN, INPUT);
+      serial_debug.println("Test Pulse Off.");
+}
+
+uint16 timer_set_period(HardwareTimer timer, uint32 microseconds) {
+  if (!microseconds) {
+    timer.setPrescaleFactor(1);
+    timer.setOverflow(1);
+    return timer.getOverflow();
+  }
+
+  uint32 cycles = microseconds*(72000000/1000000); // 72 cycles per microsecond
+
+  uint16 ps = (uint16)((cycles >> 16) + 1);
+  timer.setPrescaleFactor(ps);
+  timer.setOverflow((cycles/ps) -1 );
+  return timer.getOverflow();
 }
