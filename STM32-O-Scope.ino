@@ -69,13 +69,6 @@ Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Usi
 const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
 float samplingTime = 0;
 
-// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
-// Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
-# define maxSamples 1024*7
-uint16_t startSample = 10;
-uint16_t endSample = maxSamples ;
-// Array for the ADC data
-uint16_t dataPoints[maxSamples];
 
 // Variables for the beam position
 uint16_t signalX ;
@@ -84,32 +77,43 @@ uint16_t signalY1;
 int16_t xZoomFactor = 1;
 int16_t yPosition = -20 ;
 
+// Startup with sweep hold off
+boolean triggerHeld ;
+
+
 unsigned long sweepDelayFactor = 1;
+unsigned long timeBase = 100;  // Timebase in microseconds
 
 // Screen dimensions
 int16_t myWidth ;
 int16_t myHeight ;
 
 //Trigger stuff
-bool notTriggered ;
-int16_t triggerSensitivity = 512;
+boolean notTriggered ;
+int16_t triggerSensitivity = 1;
 int16_t retriggerDelay = 10;
 int8_t triggerType = 1;
 
 //Array for trigger points
 uint16_t triggerPoints[2];
 
-// Startup with sweep hold off
-bool onHold = false;
 
 // Serial output of samples - off by default. Toggled from UI/Serial commands.
-bool serialOutput = false;
+boolean serialOutput = false;
 
 // Create Serial Command Object.
 SerialCommand sCmd;
 
 // Create USB serial port
 USBSerial serial_debug;
+
+// Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
+// Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
+# define maxSamples 1024*7
+uint16_t startSample = 10;
+uint16_t endSample = maxSamples ;
+// Array for the ADC data
+uint16_t dataPoints[maxSamples];
 
 void setup()
 {
@@ -133,7 +137,7 @@ void setup()
   sCmd.addCommand("r",   scrollRight);          // start onscreen trace further right
   sCmd.addCommand("l",   scrollLeft);           // start onscreen trae further left
   sCmd.addCommand("e",   incEdgeType);          // increment the trigger edge type 0 1 2 0 1 2 etc
-  sCmd.addCommand("y",   decreaseYposition);    // move trace Down 
+  sCmd.addCommand("y",   decreaseYposition);    // move trace Down
   sCmd.addCommand("Y",   increaseYposition);    // move trace Down
   sCmd.addCommand("P",   toggleTestPulseOn);    // Toggle the test pulse pin from high impedence input to square wave output.
   sCmd.addCommand("p",   toggleTestPulseOff);   // Toggle the Test pin from square wave test to high impedence input.
@@ -153,7 +157,7 @@ void setup()
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-  timer_set_period(Timer3,1250);
+  timer_set_period(Timer3, 100);
   toggleTestPulseOn();
 
   // Set up our sensor pin(s)
@@ -182,7 +186,7 @@ void setup()
   graticule();
   delay(5000) ;
   clearTFT();
-
+  triggerHeld = 0 ;
   notTriggered = true;
   //triggerSensitivity = 16 ;
   graticule();
@@ -195,11 +199,11 @@ void loop()
   //serial_debug.println("blah");
 
   sCmd.readSerial();     // Process serial commands
-
-  if ( !onHold )
+  if ( !triggerHeld  )
   {
     // Wait for trigger
     trigger();
+
     if ( !notTriggered )
     {
       blinkLED();
@@ -276,11 +280,12 @@ void graticule()
 void trigger()
 {
   /*
-  for (uint16_t j = 0; j <= 10 ; j++ )
+  for (uint16_t j = 0; j <= 1000 ; j++ )
   {
     analogRead(analogInPin);
   }
   */
+
   notTriggered = true;
   switch (triggerType) {
     case 1:
@@ -305,8 +310,8 @@ void triggerBoth()
 }
 
 void triggerPositive() {
-  //  triggerPoints[0] = analogRead(analogInPin);
-  //  delayMicroseconds(20);
+  //triggerPoints[0] = analogRead(analogInPin);
+  //delayMicroseconds(20);
   triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
     notTriggered = false;
@@ -315,8 +320,8 @@ void triggerPositive() {
 }
 
 void triggerNegative() {
-  //  triggerPoints[0] = analogRead(analogInPin);
-  //  delayMicroseconds(20);
+  //triggerPoints[0] = analogRead(analogInPin);
+  //delayMicroseconds(20);
   triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
     notTriggered = false;
@@ -368,14 +373,29 @@ void takeSamples ()
   adc_reg_map *regs = dev->regs;
   adc_set_reg_seqlen(dev, 1);
   regs->SQR3 = pinMapPB0;
+  /*
+  // Discard the first 10 samples to allow the ADC to stabalise.
 
-  for (uint16_t j = 0; j <= maxSamples  ; j++ )
+  for (int16_t j = -10; j <-0 ; j++)
+   {
+    regs->CR2 |= ADC_CR2_SWSTART;
+    while (!(regs->SR & ADC_SR_EOC))
+      ;
+      if (j > 0)
+      {
+        regs->DR & ADC_DR_DATA;
+      }
+   }
+  */
+  for (int16_t j = 0; j <= maxSamples  ; j++ )
   {
     regs->CR2 |= ADC_CR2_SWSTART;
     while (!(regs->SR & ADC_SR_EOC))
       ;
-    dataPoints[j] = (regs->DR & ADC_DR_DATA);
-
+    if (j > 0)
+    {
+      dataPoints[j] = (regs->DR & ADC_DR_DATA);
+    }
     // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
 
     // sweepDelay adds delay factor with a sub microsecond resolution we would of course be better using an ISR and DMA for the ADC
@@ -389,8 +409,10 @@ void TFTSamples (uint16_t beamColour)
   signalX = 1;
   while (signalX < myWidth - 2)
   {
-    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / myWidth) ]) / ANALOG_MAX_VALUE) + yPosition;
-    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / myWidth)]) / ANALOG_MAX_VALUE) + yPosition ;
+    // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
+    // Pick the nearest suitable samples for each of our myWidth screen resolution points
+    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) + yPosition;
+    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) + yPosition ;
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     signalX += 1;
   }
@@ -431,7 +453,7 @@ void showLabels()
 void serialSamples ()
 {
   // Send *all* of the samples to the serial port.
-  for (uint16_t j = 0; j < maxSamples  ; j++ )
+  for (int16_t j = 1; j < maxSamples  ; j++ )
   {
 
     // Time from trigger in milliseconds
@@ -445,41 +467,64 @@ void serialSamples ()
   serial_debug.print("\n");
 }
 
-void toggleHold() {
-  onHold = !onHold ;
-  serial_debug.println("Toggle Hold");
+void toggleHold() 
+{
+  triggerHeld ^= 1 ;
+  serial_debug.print("# ");
+  serial_debug.print(triggerHeld);
+  if (triggerHeld)
+  {
+    serial_debug.println("# Toggle Hold on");
+  }
+  else
+  {
+    serial_debug.println("# Toggle Hold off");
+  }
 }
 
 void toggleSerial() {
   serialOutput = !serialOutput ;
-  serial_debug.println("Toggle Serial");
+  serial_debug.println("# Toggle Serial");
   serialSamples();
 }
 
 void unrecognized(const char *command) {
-  serial_debug.print("Unknown Command.[");
+  serial_debug.print("# Unknown Command.[");
   serial_debug.print(command);
   serial_debug.println("]");
 }
 
 void decreaseTimebase() {
   clearTrace();
+  /*
   sweepDelayFactor =  sweepDelayFactor / 2 ;
   if (sweepDelayFactor < 1 ) {
 
     serial_debug.print("Timebase=");
     sweepDelayFactor = 1;
   }
+  */
+  if (timeBase > 100)
+  {
+    timeBase -= 100;
+  }
   showTrace();
-  serial_debug.println(sweepDelayFactor);
+  serial_debug.print("# Timebase=");
+  serial_debug.println(timeBase);
+
 }
 
 void increaseTimebase() {
   clearTrace();
-  serial_debug.print("Timebase=");
-  sweepDelayFactor = 2 * sweepDelayFactor ;
+  serial_debug.print("# Timebase=");
+  if (timeBase < 10000)
+  {
+    timeBase += 100;
+  }
+  //sweepDelayFactor = 2 * sweepDelayFactor ;
   showTrace();
-  serial_debug.println(sweepDelayFactor);
+  serial_debug.print("# Timebase=");
+  serial_debug.println(timeBase);
 }
 
 void increaseZoomFactor() {
@@ -488,7 +533,7 @@ void increaseZoomFactor() {
     xZoomFactor += 1;
   }
   showTrace();
-  serial_debug.print("Zoom=");
+  serial_debug.print("# Zoom=");
   serial_debug.println(xZoomFactor);
 
 }
@@ -499,7 +544,7 @@ void decreaseZoomFactor() {
     xZoomFactor -= 1;
   }
   showTrace();
-  Serial.print("Zoom=");
+  Serial.print("# Zoom=");
   Serial.println(xZoomFactor);
   //clearTFT();
 }
@@ -516,11 +561,11 @@ void showTrace() {
 
 void scrollRight() {
   clearTrace();
-  if (startSample < (endSample - 12)) {
-    startSample += 10;
+  if (startSample < (endSample - 120)) {
+    startSample += 100;
   }
   showTrace();
-  Serial.print("startSample=");
+  Serial.print("# startSample=");
   Serial.println(startSample);
 
 
@@ -528,11 +573,11 @@ void scrollRight() {
 
 void scrollLeft() {
   clearTrace();
-  if (startSample > (12)) {
-    startSample -= 10;
+  if (startSample > (120)) {
+    startSample -= 100;
     showTrace();
   }
-  Serial.print("startSample=");
+  Serial.print("# startSample=");
   Serial.println(startSample);
 
 
@@ -544,8 +589,8 @@ void increaseYposition() {
     clearTrace();
     yPosition ++;
     showTrace();
-  } 
-  Serial.print("yPosition=");
+  }
+  Serial.print("# yPosition=");
   Serial.println(yPosition);
 }
 
@@ -556,23 +601,23 @@ void decreaseYposition() {
     yPosition --;
     showTrace();
   }
-  Serial.print("yPosition=");
+  Serial.print("# yPosition=");
   Serial.println(yPosition);
 }
 
 void atAt() {
-  serial_debug.println("Hello");
+  serial_debug.println("# Hello");
 }
 
-void toggleTestPulseOn (){
+void toggleTestPulseOn () {
   pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 127);
-    serial_debug.println("Test Pulse On.");
+  analogWrite(TEST_WAVE_PIN, 20);
+  serial_debug.println("# Test Pulse On.");
 }
 
-void toggleTestPulseOff (){
+void toggleTestPulseOff () {
   pinMode(TEST_WAVE_PIN, INPUT);
-      serial_debug.println("Test Pulse Off.");
+  serial_debug.println("# Test Pulse Off.");
 }
 
 uint16 timer_set_period(HardwareTimer timer, uint32 microseconds) {
@@ -582,10 +627,11 @@ uint16 timer_set_period(HardwareTimer timer, uint32 microseconds) {
     return timer.getOverflow();
   }
 
-  uint32 cycles = microseconds*(72000000/1000000); // 72 cycles per microsecond
+  uint32 cycles = microseconds * (72000000 / 1000000); // 72 cycles per microsecond
 
   uint16 ps = (uint16)((cycles >> 16) + 1);
   timer.setPrescaleFactor(ps);
-  timer.setOverflow((cycles/ps) -1 );
+  timer.setOverflow((cycles / ps) - 1 );
   return timer.getOverflow();
 }
+
