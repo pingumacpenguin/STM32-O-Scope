@@ -75,7 +75,9 @@ uint16_t signalX ;
 uint16_t signalY ;
 uint16_t signalY1;
 int16_t xZoomFactor = 1;
-int16_t yPosition = -20 ;
+// yZoomFactor (percentage)
+int16_t yZoomFactor = 200;
+int16_t yPosition = -150 ;
 
 // Startup with sweep hold off
 boolean triggerHeld ;
@@ -157,7 +159,7 @@ void setup()
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-  timer_set_period(Timer3, 100);
+  timer_set_period(Timer3, 22);
   toggleTestPulseOn();
 
   // Set up our sensor pin(s)
@@ -411,8 +413,8 @@ void TFTSamples (uint16_t beamColour)
   {
     // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
     // Pick the nearest suitable samples for each of our myWidth screen resolution points
-    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) + yPosition;
-    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) + yPosition ;
+    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE)*(yZoomFactor/100) + yPosition;
+    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE)*(yZoomFactor/100) + yPosition ;
     TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
     signalX += 1;
   }
@@ -611,7 +613,7 @@ void atAt() {
 
 void toggleTestPulseOn () {
   pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 20);
+  analogWrite(TEST_WAVE_PIN, 5);
   serial_debug.println("# Test Pulse On.");
 }
 
