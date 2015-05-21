@@ -113,8 +113,8 @@ USBSerial serial_debug;
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
 # define maxSamples 1024*7
-uint16_t startSample = 10;
-uint16_t endSample = maxSamples ;
+uint32_t startSample = 10;
+uint32_t endSample = maxSamples ;
 
 
 // Array for the ADC data
@@ -440,7 +440,7 @@ void showLabels()
   TFT.setCursor(10, 190);
   // TFT.print("Y=");
   //TFT.print((samplingTime * xZoomFactor) / maxSamples);
-  TFT.print((samplingTime) / maxSamples);
+  TFT.print(float (float(samplingTime) / float(maxSamples)));
 
   TFT.setTextSize(1);
   TFT.print(" uS/Sample ");
