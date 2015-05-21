@@ -230,9 +230,7 @@ void loop()
       //notTriggered = true;
 
       // Take our samples
-      //samplingTime = micros();
       takeSamples();
-      //samplingTime = (micros() - samplingTime);
 
       // Display the Labels ( uS/Div, Volts/Div etc).
       showLabels();
@@ -478,8 +476,8 @@ void graticule()
   void toggleHold()
   {
     triggerHeld ^= 1 ;
-    serial_debug.print("# ");
-    serial_debug.print(triggerHeld);
+    //serial_debug.print("# ");
+    //serial_debug.print(triggerHeld);
     if (triggerHeld)
     {
       serial_debug.println("# Toggle Hold on");
