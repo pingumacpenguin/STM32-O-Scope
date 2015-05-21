@@ -12,6 +12,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #include "Adafruit_ILI9341_STM.h"
 #include "Adafruit_GFX_AS.h"
 
+
 #include <SPI.h>
 
 // SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
@@ -111,14 +112,25 @@ USBSerial serial_debug;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
-# define maxSamples 1024*7
+# define maxSamples 1024*5
 uint16_t startSample = 10;
 uint16_t endSample = maxSamples ;
+
+
 // Array for the ADC data
-uint16_t dataPoints[maxSamples];
+//uint16_t dataPoints[maxSamples];
+uint32_t dataPoints32[maxSamples / 2];
+uint16_t *dataPoints = (uint16_t *)&dataPoints32;
+
+// End of DMA indication
+volatile static bool dma1_ch1_Active;
+#define ADC_CR1_FASTINT 0x70000 // Fast interleave mode DUAL MODE bits 19-16
+
+
 
 void setup()
 {
+
   serial_debug.begin();
 
   // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
@@ -218,9 +230,9 @@ void loop()
       //notTriggered = true;
 
       // Take our samples
-      samplingTime = micros();
+      //samplingTime = micros();
       takeSamples();
-      samplingTime = (micros() - samplingTime);
+      //samplingTime = (micros() - samplingTime);
 
       // Display the Labels ( uS/Div, Volts/Div etc).
       showLabels();
@@ -257,11 +269,11 @@ void graticule()
   {
     if (TicksX % (myWidth / 10) > 0 )
     {
-      TFT.drawLine(  (myHeight / 2) - 2 , TicksX, (myHeight / 2) + 2, TicksX, GRATICULE_COLOUR);
+      TFT.drawFastHLine(  (myHeight / 2) - 2 , TicksX, 5, GRATICULE_COLOUR);
     }
     else
     {
-      TFT.drawLine(  (myHeight / 2) - 6 , TicksX, (myHeight / 2) + 6, TicksX, GRATICULE_COLOUR);
+      TFT.drawFastHLine(  (myHeight / 2) - 6 , TicksX, 11, GRATICULE_COLOUR);
     }
 
   }
@@ -269,371 +281,388 @@ void graticule()
   {
     if (TicksY % (myHeight / 10) > 0 )
     {
-      TFT.drawLine( TicksY,  (myWidth / 2) - 2 , TicksY, (myWidth / 2) + 2, GRATICULE_COLOUR);
+      TFT.drawFastVLine( TicksY,  (myWidth / 2) - 2 , 5, GRATICULE_COLOUR);
     }
     else
     {
-      TFT.drawLine( TicksY,  (myWidth / 2) - 5 , TicksY, (myWidth / 2) + 5, GRATICULE_COLOUR);
+      TFT.drawFastVLine( TicksY,  (myWidth / 2) - 5 , 11, GRATICULE_COLOUR);
     }
   }
 }
 
-// Crude triggering on positive or negative or either change from previous to current sample.
-void trigger()
-{
-  /*
-  for (uint16_t j = 0; j <= 1000 ; j++ )
+  // Crude triggering on positive or negative or either change from previous to current sample.
+  void trigger()
   {
-    analogRead(analogInPin);
-  }
-  */
+    /*
+    for (uint16_t j = 0; j <= 1000 ; j++ )
+    {
+      analogRead(analogInPin);
+    }
+    */
 
-  notTriggered = true;
-  switch (triggerType) {
-    case 1:
-      triggerNegative() ;
-      break;
-    case 2:
-      triggerPositive() ;
-      break;
-    default:
-      triggerBoth() ;
-      break;
+    notTriggered = true;
+    switch (triggerType) {
+      case 1:
+        triggerNegative() ;
+        break;
+      case 2:
+        triggerPositive() ;
+        break;
+      default:
+        triggerBoth() ;
+        break;
+    }
   }
-}
 
-void triggerBoth()
-{
-  triggerPoints[0] = analogRead(analogInPin);
-  delayMicroseconds(20);
-  if (((analogRead(analogInPin) - triggerPoints[0] ) < triggerSensitivity) and ((triggerPoints[0] - analogRead(analogInPin) ) < triggerSensitivity)) {
-    notTriggered = false ;
-  }
-}
-
-void triggerPositive() {
-  //triggerPoints[0] = analogRead(analogInPin);
-  //delayMicroseconds(20);
-  triggerPoints[1] = analogRead(analogInPin);
-  if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
-    notTriggered = false;
-  }
-  triggerPoints[0] = analogRead(analogInPin);
-}
-
-void triggerNegative() {
-  //triggerPoints[0] = analogRead(analogInPin);
-  //delayMicroseconds(20);
-  triggerPoints[1] = analogRead(analogInPin);
-  if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
-    notTriggered = false;
-  }
-  triggerPoints[0] = analogRead(analogInPin);
-}
-
-void incEdgeType() {
-  triggerType += 1;
-  if (triggerType > 2)
+  void triggerBoth()
   {
-    triggerType = 0;
+    triggerPoints[0] = analogRead(analogInPin);
+    delayMicroseconds(20);
+    if (((analogRead(analogInPin) - triggerPoints[0] ) < triggerSensitivity) and ((triggerPoints[0] - analogRead(analogInPin) ) < triggerSensitivity)) {
+      notTriggered = false ;
+    }
   }
-  serial_debug.println(triggerPoints[0]);
-  serial_debug.println(triggerPoints[1]);
-  serial_debug.println(triggerType);
-}
 
-void clearTFT()
-{
-  TFT.fillScreen(BEAM_OFF_COLOUR);                // Blank the display
-}
+  void triggerPositive() {
+    //triggerPoints[0] = analogRead(analogInPin);
+    //delayMicroseconds(20);
+    triggerPoints[1] = analogRead(analogInPin);
+    if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
+      notTriggered = false;
+    }
+    triggerPoints[0] = analogRead(analogInPin);
+  }
 
-void blinkLED()
-{
+  void triggerNegative() {
+    //triggerPoints[0] = analogRead(analogInPin);
+    //delayMicroseconds(20);
+    triggerPoints[1] = analogRead(analogInPin);
+    if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
+      notTriggered = false;
+    }
+    triggerPoints[0] = analogRead(analogInPin);
+  }
+
+  void incEdgeType() {
+    triggerType += 1;
+    if (triggerType > 2)
+    {
+      triggerType = 0;
+    }
+    serial_debug.println(triggerPoints[0]);
+    serial_debug.println(triggerPoints[1]);
+    serial_debug.println(triggerType);
+  }
+
+  void clearTFT()
+  {
+    TFT.fillScreen(BEAM_OFF_COLOUR);                // Blank the display
+  }
+
+  void blinkLED()
+  {
 #if defined BOARD_LED
-  digitalWrite(BOARD_LED, LOW);
-  delay(10);
-  digitalWrite(BOARD_LED, HIGH);
+    digitalWrite(BOARD_LED, LOW);
+    delay(10);
+    digitalWrite(BOARD_LED, HIGH);
 #endif
 
-}
-
-// Grab the samples from the ADC as fast as Arduinoland will let us
-// Theoretically the ADC can do 2Ms/S but this would require some optimisation.
-void takeSamples ()
-{
-  /*
-  for (uint16_t j = 0; j <= 10 ; j++ )
-  {
-    analogRead(analogInPin);
   }
-  */
-  // In effect I have unwrapped analogRead() into its component parts here to speed things up.
-  // this avoids the need to check the pinmap every time we go round the loop.
-  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
-  int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
-  adc_set_sample_rate(dev, ADC_SMPR_1_5);
-  adc_reg_map *regs = dev->regs;
-  adc_set_reg_seqlen(dev, 1);
-  regs->SQR3 = pinMapPB0;
-  /*
-  // Discard the first 10 samples to allow the ADC to stabalise.
 
-  for (int16_t j = -10; j <-0 ; j++)
-   {
-    regs->CR2 |= ADC_CR2_SWSTART;
-    while (!(regs->SR & ADC_SR_EOC))
-      ;
-      if (j > 0)
-      {
-        regs->DR & ADC_DR_DATA;
-      }
-   }
-  */
-  for (int16_t j = 0; j <= maxSamples  ; j++ )
+  // Grab the samples from the ADC as fast as Arduinoland will let us
+  // Theoretically the ADC can do 2Ms/S but this would require some optimisation.
+  void takeSamples ()
   {
+
+    // In effect I have unwrapped analogRead() into its component parts here to speed things up.
+    // this avoids the need to check the pinmap every time we go round the loop.
+    const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
+    int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
+    adc_set_sample_rate(dev, ADC_SMPR_1_5);
+
+    adc_reg_map *regs = dev->regs;
+    adc_set_reg_seqlen(dev, 1);
+    regs->SQR3 = pinMapPB0;
+
+    adc_set_sample_rate(ADC2, ADC_SMPR_1_5);
+
+    regs->CR2 |= ADC_CR2_CONT; // | ADC_CR2_DMA; // Set continuous mode and DMA
+    ADC1->regs->CR1 |= ADC_CR1_FASTINT; // Interleaved mode
+
+    ADC2->regs->CR2 |= ADC_CR2_CONT; // ADC 2 continuos
+    ADC2->regs->SQR3 = pinMapPB0;
+
+    dma_init(DMA1);
+    dma_attach_interrupt(DMA1, DMA_CH1, DMA1_CH1_Event);
+
+    adc_dma_enable(dev);
+    dma_setup_transfer(DMA1, DMA_CH1, &ADC1->regs->DR, DMA_SIZE_32BITS,
+                       dataPoints32, DMA_SIZE_32BITS, (DMA_MINC_MODE | DMA_TRNS_CMPLT));// Receive buffer DMA
+    dma_set_num_transfers(DMA1, DMA_CH1, maxSamples / 2);
+    dma1_ch1_Active = 1;
     regs->CR2 |= ADC_CR2_SWSTART;
-    while (!(regs->SR & ADC_SR_EOC))
-      ;
-    if (j > 0)
+    dma_enable(DMA1, DMA_CH1); // Enable the channel and start the transfer.
+    samplingTime = micros();
+    while (dma1_ch1_Active);
+    samplingTime = (micros() - samplingTime);
+
+    dma_disable(DMA1, DMA_CH1); //End of trasfer, disable DMA and Continuous mode.
+    regs->CR2 &= ~ADC_CR2_CONT;
+  }
+
+
+
+  void TFTSamples (uint16_t beamColour)
+  {
+    signalX = 1;
+    while (signalX < myWidth - 2)
     {
-      dataPoints[j] = (regs->DR & ADC_DR_DATA);
+      // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
+      // Pick the nearest suitable samples for each of our myWidth screen resolution points
+      signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition;
+      signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE) * (yZoomFactor / 100) + yPosition ;
+      TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
+      signalX += 1;
     }
-    // TODO: Tighten up this loop or better still use DMA and/or dual conversion to get up to 2MS/s i.e. 0.5uS per sample and sub-microsecond accuracy.
-
-    // sweepDelay adds delay factor with a sub microsecond resolution we would of course be better using an ISR and DMA for the ADC
-    //
-    //sweepDelay(sweepDelayFactor);
   }
-}
 
-void TFTSamples (uint16_t beamColour)
-{
-  signalX = 1;
-  while (signalX < myWidth - 2)
+
+  // Run a bunch of NOOPs to trim the inter ADC conversion gap
+  void sweepDelay(unsigned long sweepDelayFactor) {
+    volatile unsigned long i = 0;
+    for (i = 0; i < sweepDelayFactor; i++) {
+      __asm__ __volatile__ ("nop");
+    }
+  }
+
+  void showLabels()
   {
-    // Scale our samples to fit our screen. Most scopes increase this in steps of 5,10,25,50,100 250,500,1000 etc
-    // Pick the nearest suitable samples for each of our myWidth screen resolution points
-    signalY =  ((myHeight * dataPoints[signalX * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE)*(yZoomFactor/100) + yPosition;
-    signalY1 = ((myHeight * dataPoints[(signalX + 1) * ((endSample - startSample) / (myWidth * timeBase / 100)) + 1]) / ANALOG_MAX_VALUE)*(yZoomFactor/100) + yPosition ;
-    TFT.drawLine (  signalY * 99 / 100 + 1, signalX, signalY1 * 99 / 100 + 1 , signalX + 1, beamColour) ;
-    signalX += 1;
+    TFT.setRotation(LANDSCAPE);
+    TFT.setTextSize(2);
+    TFT.setCursor(10, 190);
+    // TFT.print("Y=");
+    TFT.print((samplingTime * xZoomFactor) / maxSamples);
+    TFT.setTextSize(1);
+    TFT.print(" uS/Div ");
+    TFT.setTextSize(2);
+    TFT.setCursor(10, 210);
+    TFT.print("1.0");
+    TFT.setTextSize(1);
+    TFT.print(" V/Div ");
+    TFT.setTextSize(2);
+    TFT.print(samplingTime);
+    TFT.setTextSize(1);
+    TFT.print(" us for ");
+    TFT.print(maxSamples);
+    TFT.print(" samples ");
+    TFT.setRotation(PORTRAIT);
   }
-}
 
-
-// Run a bunch of NOOPs to trim the inter ADC conversion gap
-void sweepDelay(unsigned long sweepDelayFactor) {
-  volatile unsigned long i = 0;
-  for (i = 0; i < sweepDelayFactor; i++) {
-    __asm__ __volatile__ ("nop");
-  }
-}
-
-void showLabels()
-{
-  TFT.setRotation(LANDSCAPE);
-  TFT.setTextSize(2);
-  TFT.setCursor(10, 190);
-  // TFT.print("Y=");
-  TFT.print((samplingTime * xZoomFactor) / maxSamples);
-  TFT.setTextSize(1);
-  TFT.print(" uS/Div ");
-  TFT.setTextSize(2);
-  TFT.setCursor(10, 210);
-  TFT.print("1.0");
-  TFT.setTextSize(1);
-  TFT.print(" V/Div ");
-  TFT.setTextSize(2);
-  TFT.print(samplingTime);
-  TFT.setTextSize(1);
-  TFT.print(" us for ");
-  TFT.print(maxSamples);
-  TFT.print(" samples ");
-  TFT.setRotation(PORTRAIT);
-}
-
-void serialSamples ()
-{
-  // Send *all* of the samples to the serial port.
-  for (int16_t j = 1; j < maxSamples  ; j++ )
+  void serialSamples ()
   {
+    // Send *all* of the samples to the serial port.
+    for (int16_t j = 1; j < maxSamples  ; j++ )
+    {
 
-    // Time from trigger in milliseconds
-    serial_debug.print((samplingTime / (maxSamples))*j);
-    serial_debug.print(" ");
-    // raw ADC data
-    serial_debug.print(dataPoints[j]);
+      // Time from trigger in milliseconds
+      serial_debug.print((samplingTime / (maxSamples))*j);
+      serial_debug.print(" ");
+      // raw ADC data
+      serial_debug.print(dataPoints[j]);
+      serial_debug.print("\n");
+
+    }
     serial_debug.print("\n");
-
   }
-  serial_debug.print("\n");
-}
 
-void toggleHold() 
-{
-  triggerHeld ^= 1 ;
-  serial_debug.print("# ");
-  serial_debug.print(triggerHeld);
-  if (triggerHeld)
+  void toggleHold()
   {
-    serial_debug.println("# Toggle Hold on");
+    triggerHeld ^= 1 ;
+    serial_debug.print("# ");
+    serial_debug.print(triggerHeld);
+    if (triggerHeld)
+    {
+      serial_debug.println("# Toggle Hold on");
+    }
+    else
+    {
+      serial_debug.println("# Toggle Hold off");
+    }
   }
-  else
-  {
-    serial_debug.println("# Toggle Hold off");
+
+  void toggleSerial() {
+    serialOutput = !serialOutput ;
+    serial_debug.println("# Toggle Serial");
+    serialSamples();
   }
-}
 
-void toggleSerial() {
-  serialOutput = !serialOutput ;
-  serial_debug.println("# Toggle Serial");
-  serialSamples();
-}
-
-void unrecognized(const char *command) {
-  serial_debug.print("# Unknown Command.[");
-  serial_debug.print(command);
-  serial_debug.println("]");
-}
-
-void decreaseTimebase() {
-  clearTrace();
-  /*
-  sweepDelayFactor =  sweepDelayFactor / 2 ;
-  if (sweepDelayFactor < 1 ) {
-
-    serial_debug.print("Timebase=");
-    sweepDelayFactor = 1;
+  void unrecognized(const char *command) {
+    serial_debug.print("# Unknown Command.[");
+    serial_debug.print(command);
+    serial_debug.println("]");
   }
-  */
-  if (timeBase > 100)
-  {
-    timeBase -= 100;
-  }
-  showTrace();
-  serial_debug.print("# Timebase=");
-  serial_debug.println(timeBase);
 
-}
-
-void increaseTimebase() {
-  clearTrace();
-  serial_debug.print("# Timebase=");
-  if (timeBase < 10000)
-  {
-    timeBase += 100;
-  }
-  //sweepDelayFactor = 2 * sweepDelayFactor ;
-  showTrace();
-  serial_debug.print("# Timebase=");
-  serial_debug.println(timeBase);
-}
-
-void increaseZoomFactor() {
-  clearTrace();
-  if ( xZoomFactor < 21) {
-    xZoomFactor += 1;
-  }
-  showTrace();
-  serial_debug.print("# Zoom=");
-  serial_debug.println(xZoomFactor);
-
-}
-
-void decreaseZoomFactor() {
-  clearTrace();
-  if (xZoomFactor > 1) {
-    xZoomFactor -= 1;
-  }
-  showTrace();
-  Serial.print("# Zoom=");
-  Serial.println(xZoomFactor);
-  //clearTFT();
-}
-
-void clearTrace() {
-  TFTSamples(BEAM_OFF_COLOUR);
-  graticule();
-}
-
-void showTrace() {
-  showLabels();
-  TFTSamples(BEAM1_COLOUR);
-}
-
-void scrollRight() {
-  clearTrace();
-  if (startSample < (endSample - 120)) {
-    startSample += 100;
-  }
-  showTrace();
-  Serial.print("# startSample=");
-  Serial.println(startSample);
-
-
-}
-
-void scrollLeft() {
-  clearTrace();
-  if (startSample > (120)) {
-    startSample -= 100;
-    showTrace();
-  }
-  Serial.print("# startSample=");
-  Serial.println(startSample);
-
-
-}
-
-void increaseYposition() {
-
-  if (yPosition < myHeight ) {
+  void decreaseTimebase() {
     clearTrace();
-    yPosition ++;
+    /*
+    sweepDelayFactor =  sweepDelayFactor / 2 ;
+    if (sweepDelayFactor < 1 ) {
+
+      serial_debug.print("Timebase=");
+      sweepDelayFactor = 1;
+    }
+    */
+    if (timeBase > 100)
+    {
+      timeBase -= 100;
+    }
     showTrace();
+    serial_debug.print("# Timebase=");
+    serial_debug.println(timeBase);
+
   }
-  Serial.print("# yPosition=");
-  Serial.println(yPosition);
-}
 
-void decreaseYposition() {
-
-  if (yPosition > -myHeight ) {
+  void increaseTimebase() {
     clearTrace();
-    yPosition --;
+    serial_debug.print("# Timebase=");
+    if (timeBase < 10000)
+    {
+      timeBase += 100;
+    }
+    //sweepDelayFactor = 2 * sweepDelayFactor ;
     showTrace();
+    serial_debug.print("# Timebase=");
+    serial_debug.println(timeBase);
   }
-  Serial.print("# yPosition=");
-  Serial.println(yPosition);
-}
 
-void atAt() {
-  serial_debug.println("# Hello");
-}
+  void increaseZoomFactor() {
+    clearTrace();
+    if ( xZoomFactor < 21) {
+      xZoomFactor += 1;
+    }
+    showTrace();
+    serial_debug.print("# Zoom=");
+    serial_debug.println(xZoomFactor);
 
-void toggleTestPulseOn () {
-  pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 5);
-  serial_debug.println("# Test Pulse On.");
-}
+  }
 
-void toggleTestPulseOff () {
-  pinMode(TEST_WAVE_PIN, INPUT);
-  serial_debug.println("# Test Pulse Off.");
-}
+  void decreaseZoomFactor() {
+    clearTrace();
+    if (xZoomFactor > 1) {
+      xZoomFactor -= 1;
+    }
+    showTrace();
+    Serial.print("# Zoom=");
+    Serial.println(xZoomFactor);
+    //clearTFT();
+  }
 
-uint16 timer_set_period(HardwareTimer timer, uint32 microseconds) {
-  if (!microseconds) {
-    timer.setPrescaleFactor(1);
-    timer.setOverflow(1);
+  void clearTrace() {
+    TFTSamples(BEAM_OFF_COLOUR);
+    graticule();
+  }
+
+  void showTrace() {
+    showLabels();
+    TFTSamples(BEAM1_COLOUR);
+  }
+
+  void scrollRight() {
+    clearTrace();
+    if (startSample < (endSample - 120)) {
+      startSample += 100;
+    }
+    showTrace();
+    Serial.print("# startSample=");
+    Serial.println(startSample);
+
+
+  }
+
+  void scrollLeft() {
+    clearTrace();
+    if (startSample > (120)) {
+      startSample -= 100;
+      showTrace();
+    }
+    Serial.print("# startSample=");
+    Serial.println(startSample);
+
+
+  }
+
+  void increaseYposition() {
+
+    if (yPosition < myHeight ) {
+      clearTrace();
+      yPosition ++;
+      showTrace();
+    }
+    Serial.print("# yPosition=");
+    Serial.println(yPosition);
+  }
+
+  void decreaseYposition() {
+
+    if (yPosition > -myHeight ) {
+      clearTrace();
+      yPosition --;
+      showTrace();
+    }
+    Serial.print("# yPosition=");
+    Serial.println(yPosition);
+  }
+
+  void atAt() {
+    serial_debug.println("# Hello");
+  }
+
+  void toggleTestPulseOn () {
+    pinMode(TEST_WAVE_PIN, OUTPUT);
+    analogWrite(TEST_WAVE_PIN, 5);
+    serial_debug.println("# Test Pulse On.");
+  }
+
+  void toggleTestPulseOff () {
+    pinMode(TEST_WAVE_PIN, INPUT);
+    serial_debug.println("# Test Pulse Off.");
+  }
+
+  uint16 timer_set_period(HardwareTimer timer, uint32 microseconds) {
+    if (!microseconds) {
+      timer.setPrescaleFactor(1);
+      timer.setOverflow(1);
+      return timer.getOverflow();
+    }
+
+    uint32 cycles = microseconds * (72000000 / 1000000); // 72 cycles per microsecond
+
+    uint16 ps = (uint16)((cycles >> 16) + 1);
+    timer.setPrescaleFactor(ps);
+    timer.setOverflow((cycles / ps) - 1 );
     return timer.getOverflow();
   }
 
-  uint32 cycles = microseconds * (72000000 / 1000000); // 72 cycles per microsecond
+  /**
+  * @brief Enable DMA requests
+  * @param dev ADC device on which to enable DMA requests
+  */
 
-  uint16 ps = (uint16)((cycles >> 16) + 1);
-  timer.setPrescaleFactor(ps);
-  timer.setOverflow((cycles / ps) - 1 );
-  return timer.getOverflow();
-}
+  void adc_dma_enable(const adc_dev * dev) {
+    bb_peri_set_bit(&dev->regs->CR2, ADC_CR2_DMA_BIT, 1);
+  }
 
+
+
+  /**
+  * @brief Disable DMA requests
+  * @param dev ADC device on which to disable DMA requests
+  */
+
+  void adc_dma_disable(const adc_dev * dev) {
+    bb_peri_set_bit(&dev->regs->CR2, ADC_CR2_DMA_BIT, 0);
+  }
+
+  static void DMA1_CH1_Event() {
+    dma1_ch1_Active = 0;
+  }
