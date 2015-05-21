@@ -47,7 +47,7 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 //
 
 #define TFT_LED        PA3     // Backlight 
-#define TEST_WAVE_PIN       PB1     // PWM 500 Hz 
+#define TEST_WAVE_PIN       PB0     // PWM 500 Hz 
 
 #define PORTRAIT 0
 #define LANDSCAPE 1
@@ -67,7 +67,7 @@ Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Usi
 
 // Analog input
 #define ANALOG_MAX_VALUE 4096
-const int8_t analogInPin = PB0;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
+const int8_t analogInPin = PB1;   // Analog input pin: any of LQFP44 pins (PORT_PIN), 10 (PA0), 11 (PA1), 12 (PA2), 13 (PA3), 14 (PA4), 15 (PA5), 16 (PA6), 17 (PA7), 18 (PB0), 19  (PB1)
 float samplingTime = 0;
 
 
@@ -164,15 +164,15 @@ void setup()
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
   // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quouted as drawing 80mA at full brightness)
   // Alternatively, connect the backlight to 3v3 for an always on, bright display.
-  pinMode(TFT_LED, OUTPUT);
-  analogWrite(TFT_LED, 127);
+  //pinMode(TFT_LED, OUTPUT);
+  //analogWrite(TFT_LED, 127);
 
 
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-  timer_set_period(Timer3, 22);
-  toggleTestPulseOn();
+  //timer_set_period(Timer3, 22);
+  //toggleTestPulseOn();
 
   // Set up our sensor pin(s)
   pinMode(analogInPin, INPUT_ANALOG);
@@ -367,22 +367,26 @@ void blinkLED()
 
 }
 
-// Grab the samples from the ADC as fast as Arduinoland will let us
-// Theoretically the ADC can do 2Ms/S but this would require some optimisation.
+// Grab the samples from the ADC
+// Theoretically the ADC can not go any faster than this.
+//
+// According to specs, when using 72Mhz on the MCU main clock,the fastest ADC capture time is 1.17 uS. As we use 2 ADCs we get double the captures, so .58 uS, which is the times we get with ADC_SMPR_1_5.
+// I think we have reached the speed limit of the chip, now all we can do is improve accuracy.
+// See; http://stm32duino.com/viewtopic.php?f=19&t=107&p=1202#p1194
+
 void takeSamples ()
 {
-
-  // In effect I have unwrapped analogRead() into its component parts here to speed things up.
-  // this avoids the need to check the pinmap every time we go round the loop.
+  // This loop uses dual interleaved mode to get the best performance out of the ADCs
+  //
   const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
   int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
-  adc_set_sample_rate(dev, ADC_SMPR_1_5);
+  adc_set_sample_rate(dev, ADC_SMPR_13_5);
 
   adc_reg_map *regs = dev->regs;
   adc_set_reg_seqlen(dev, 1);
   regs->SQR3 = pinMapPB0;
 
-  adc_set_sample_rate(ADC2, ADC_SMPR_1_5);
+  adc_set_sample_rate(ADC2, ADC_SMPR_13_5);
 
   regs->CR2 |= ADC_CR2_CONT; // | ADC_CR2_DMA; // Set continuous mode and DMA
   ADC1->regs->CR1 |= ADC_CR1_FASTINT; // Interleaved mode
@@ -405,7 +409,16 @@ void takeSamples ()
   samplingTime = (micros() - samplingTime);
 
   dma_disable(DMA1, DMA_CH1); //End of trasfer, disable DMA and Continuous mode.
-  regs->CR2 &= ~ADC_CR2_CONT;
+  // regs->CR2 &= ~ADC_CR2_CONT;
+  /*
+  for (int16_t j = 0; j < maxSamples/2  ; j++ )
+  {
+    // dataPoints32[j] &=0x0FFF0FFF;
+    dataPoints32[j] &=0x0FF60FF6;
+    // dataPoints32[j] &=0x0FF00FF0;
+    // dataPoints32[j] &=0x0FC00FC0;
+  }
+  */
 }
 
 
@@ -461,6 +474,7 @@ void showLabels()
 void serialSamples ()
 {
   // Send *all* of the samples to the serial port.
+  serial_debug.println("#Time(ms), ADC Number, value");
   for (int16_t j = 1; j < maxSamples  ; j++ )
   {
 
@@ -468,8 +482,12 @@ void serialSamples ()
     serial_debug.print((samplingTime / (maxSamples))*j);
     serial_debug.print(" ");
     // raw ADC data
-    serial_debug.print(dataPoints[j]);
+    serial_debug.print(j % 2 + 1);
+    serial_debug.print(" ");
+    serial_debug.print(dataPoints[j] );
     serial_debug.print("\n");
+    // delay(100);
+
 
   }
   serial_debug.print("\n");
@@ -587,7 +605,6 @@ void scrollLeft() {
   }
   Serial.print("# startSample=");
   Serial.println(startSample);
-
 
 }
 
