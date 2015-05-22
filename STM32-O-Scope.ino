@@ -132,7 +132,8 @@ void setup()
 {
 
   serial_debug.begin();
-
+  adc_calibrate(ADC1);
+  adc_calibrate(ADC2);
   // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
@@ -171,8 +172,8 @@ void setup()
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
-  //timer_set_period(Timer3, 22);
-  //toggleTestPulseOn();
+  timer_set_period(Timer3, 1000);
+  toggleTestPulseOn();
 
   // Set up our sensor pin(s)
   pinMode(analogInPin, INPUT_ANALOG);
@@ -404,6 +405,8 @@ void takeSamples ()
   dma1_ch1_Active = 1;
   regs->CR2 |= ADC_CR2_SWSTART;
   dma_enable(DMA1, DMA_CH1); // Enable the channel and start the transfer.
+  //adc_calibrate(ADC1);
+  //adc_calibrate(ADC2);
   samplingTime = micros();
   while (dma1_ch1_Active);
   samplingTime = (micros() - samplingTime);
@@ -474,7 +477,7 @@ void showLabels()
 void serialSamples ()
 {
   // Send *all* of the samples to the serial port.
-  serial_debug.println("#Time(ms), ADC Number, value");
+  serial_debug.println("#Time(uS), ADC Number, value");
   for (int16_t j = 1; j < maxSamples  ; j++ )
   {
 
@@ -636,7 +639,7 @@ void atAt() {
 
 void toggleTestPulseOn () {
   pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 5);
+  analogWrite(TEST_WAVE_PIN, 75);
   serial_debug.println("# Test Pulse On.");
 }
 
