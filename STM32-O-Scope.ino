@@ -414,11 +414,11 @@ void takeSamples ()
   dma_disable(DMA1, DMA_CH1); //End of trasfer, disable DMA and Continuous mode.
   // regs->CR2 &= ~ADC_CR2_CONT;
   /*
-  for (int16_t j = 0; j < maxSamples/2  ; j++ )
+  for (int16_t j = 0; j < maxSamples - 1  ; j++ )
   {
-    // dataPoints32[j] &=0x0FFF0FFF;
-    dataPoints32[j] &=0x0FF60FF6;
-    // dataPoints32[j] &=0x0FF00FF0;
+
+   uint16_t dataPointsAve =  (dataPoints32[j] + dataPoints[j+1])/2;
+
     // dataPoints32[j] &=0x0FC00FC0;
   }
   */
@@ -477,10 +477,9 @@ void showLabels()
 void serialSamples ()
 {
   // Send *all* of the samples to the serial port.
-  serial_debug.println("#Time(uS), ADC Number, value");
-  for (int16_t j = 1; j < maxSamples  ; j++ )
+  serial_debug.println("#Time(uS), ADC Number, value, diff");
+  for (int16_t j = 1; j < maxSamples   ; j++ )
   {
-
     // Time from trigger in milliseconds
     serial_debug.print((samplingTime / (maxSamples))*j);
     serial_debug.print(" ");
@@ -488,7 +487,12 @@ void serialSamples ()
     serial_debug.print(j % 2 + 1);
     serial_debug.print(" ");
     serial_debug.print(dataPoints[j] );
+    serial_debug.print(" ");
+    serial_debug.print(dataPoints[j] - dataPoints[j - 1]);
+    serial_debug.print(" ");
+    serial_debug.print(dataPoints[j] - ((dataPoints[j] - dataPoints[j - 1]) / 2));
     serial_debug.print("\n");
+
     // delay(100);
 
 
