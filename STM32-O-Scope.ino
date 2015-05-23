@@ -13,6 +13,12 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #include "Adafruit_GFX_AS.h"
 
 
+#include "RTClock.h"
+
+RTClock rt (RTCSEL_LSE); // initialise
+uint32 tt;
+
+// Be sure to use the latest version of the SPI libraries see stm32duino
 #include <SPI.h>
 
 // SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
@@ -80,8 +86,8 @@ int16_t xZoomFactor = 1;
 int16_t yZoomFactor = 200;
 int16_t yPosition = -150 ;
 
-// Startup with sweep hold off
-boolean triggerHeld ;
+// Startup with sweep hold off or on
+boolean triggerHeld = 0 ;
 
 
 unsigned long sweepDelayFactor = 1;
@@ -93,7 +99,7 @@ int16_t myHeight ;
 
 //Trigger stuff
 boolean notTriggered ;
-int16_t triggerSensitivity = 1;
+int16_t triggerSensitivity = 50;
 int16_t retriggerDelay = 10;
 int8_t triggerType = 1;
 
@@ -201,11 +207,12 @@ void setup()
   graticule();
   delay(5000) ;
   clearTFT();
-  triggerHeld = 0 ;
+  //triggerHeld = 0 ;
   notTriggered = true;
   //triggerSensitivity = 16 ;
   graticule();
   showLabels();
+  
   //serial_debug.flush();
 }
 
@@ -214,6 +221,7 @@ void loop()
   //serial_debug.println("blah");
 
   sCmd.readSerial();     // Process serial commands
+  //showTime();
   if ( !triggerHeld  )
   {
     // Wait for trigger
@@ -245,6 +253,7 @@ void loop()
       }
       */
     }
+    showTime();
   }
   // Wait before allowing a re-trigger
   delay(retriggerDelay);
@@ -471,6 +480,22 @@ void showLabels()
   TFT.print(" us for ");
   TFT.print(maxSamples);
   TFT.print(" samples ");
+  showTime(); 
+  TFT.setRotation(PORTRAIT);
+}
+
+void showTime ()
+{
+  // Show RTC Time.
+  TFT.setTextSize(1);
+  TFT.setRotation(LANDSCAPE);
+  if (rt.getTime() != tt)
+  {
+    tt = rt.getTime();
+    TFT.setCursor(20, 10);
+    TFT.print(tt);
+
+  }
   TFT.setRotation(PORTRAIT);
 }
 
