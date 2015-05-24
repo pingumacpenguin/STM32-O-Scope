@@ -12,11 +12,11 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #include "Adafruit_ILI9341_STM.h"
 #include "Adafruit_GFX_AS.h"
 
-
 #include "RTClock.h"
-
 RTClock rt (RTCSEL_LSE); // initialise
 uint32 tt;
+
+#include "Time.h"
 
 // Be sure to use the latest version of the SPI libraries see stm32duino
 #include <SPI.h>
@@ -46,8 +46,8 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 
 // Hardware SPI1 on the STM32F103C8T6 *ALSO* needs to be connected and pins are as follows.
 //
-// SPI1_NSS  (PA4) (LQFP44 pin 14)    (n.c.)
-// SPI1_SCK  (PA5) (LQFP44 pin 15)    (Brown)
+// SPI1_NSS  (PA4) (LQFP48 pin 14)    (n.c.)
+// SPI1_SCK  (PA5) (LQFP48 pin 15)    (Brown)
 // SPI1_MOSO (PA6) (LQFP48 pin 16)    (White)
 // SPI1_MOSI (PA7) (LQFP48 pin 17)    (Grey)
 //
@@ -118,7 +118,7 @@ USBSerial serial_debug;
 
 // Samples - depends on available RAM 6K is about the limit on an STM32F103C8T6
 // Bear in mind that the ILI9341 display is only able to display 240x320 pixels, at any time but we can output far more to the serial port, we effectively only show a window on our samples on the TFT.
-# define maxSamples 1024*7
+# define maxSamples 1024*6
 uint32_t startSample = 10;
 uint32_t endSample = maxSamples ;
 
@@ -136,7 +136,6 @@ volatile static bool dma1_ch1_Active;
 
 void setup()
 {
-
   serial_debug.begin();
   adc_calibrate(ADC1);
   adc_calibrate(ADC2);
@@ -149,6 +148,7 @@ void setup()
   //
   // Serial command setup
   // Setup callbacks for SerialCommand commands
+  sCmd.addCommand("timestamp",   setCurrentTime);       // Set the current time based on a unix timestamp
   sCmd.addCommand("s",   toggleSerial);         // Turns serial sample output on/off
   sCmd.addCommand("h",   toggleHold);           // Turns triggering on/off
   sCmd.addCommand("t",   decreaseTimebase);     // decrease Timebase by 10x
@@ -162,7 +162,7 @@ void setup()
   sCmd.addCommand("Y",   increaseYposition);    // move trace Down
   sCmd.addCommand("P",   toggleTestPulseOn);    // Toggle the test pulse pin from high impedence input to square wave output.
   sCmd.addCommand("p",   toggleTestPulseOff);   // Toggle the Test pin from square wave test to high impedence input.
-  sCmd.addCommand("ATAT",  atAt);                // Mystery command... what is this rubbish in the buffer?
+  sCmd.addCommand("ATAT",  atAt);               // Mystery command... what is this rubbish in the buffer?
   /*
   */
 
@@ -212,7 +212,7 @@ void setup()
   //triggerSensitivity = 16 ;
   graticule();
   showLabels();
-  
+
   //serial_debug.flush();
 }
 
@@ -221,7 +221,6 @@ void loop()
   //serial_debug.println("blah");
 
   sCmd.readSerial();     // Process serial commands
-  //showTime();
   if ( !triggerHeld  )
   {
     // Wait for trigger
@@ -480,7 +479,7 @@ void showLabels()
   TFT.print(" us for ");
   TFT.print(maxSamples);
   TFT.print(" samples ");
-  showTime(); 
+  //showTime();
   TFT.setRotation(PORTRAIT);
 }
 
@@ -493,7 +492,19 @@ void showTime ()
   {
     tt = rt.getTime();
     TFT.setCursor(20, 10);
-    TFT.print(tt);
+    TFT.print(hour(tt));
+    TFT.print(":");
+    TFT.print(minute(tt));
+    TFT.print(":");
+    TFT.print(second(tt));
+    TFT.print(" ");
+    TFT.print(day(tt));
+    TFT.print("-");
+    TFT.print(month(tt));
+    TFT.print("-");
+    TFT.print(year(tt));
+    TFT.print(" UTC ");
+    // TFT.print(tt);
 
   }
   TFT.setRotation(PORTRAIT);
@@ -702,7 +713,6 @@ void adc_dma_enable(const adc_dev * dev) {
 }
 
 
-
 /**
 * @brief Disable DMA requests
 * @param dev ADC device on which to disable DMA requests
@@ -715,3 +725,29 @@ void adc_dma_disable(const adc_dev * dev) {
 static void DMA1_CH1_Event() {
   dma1_ch1_Active = 0;
 }
+
+void setCurrentTime() {
+  char *arg;
+  arg = sCmd.next();
+  String thisArg=arg;
+  serial_debug.print("# Time command - ");
+  serial_debug.print(thisArg.toInt() );
+  serial_debug.print(" ");
+  setTime(thisArg.toInt());
+  time_t t = now();
+  rt.setTime(t);
+  serial_debug.print(hour(t));
+  serial_debug.print(":");
+  serial_debug.print(minute(t));
+  serial_debug.print(":");
+  serial_debug.print(second(t));
+  serial_debug.print(" ");
+  serial_debug.print(day(t));
+  serial_debug.print("/");
+  serial_debug.print(month(t));
+  serial_debug.print("/");
+  serial_debug.print(year(t));
+  serial_debug.println("(UTC)");
+  
+}
+
