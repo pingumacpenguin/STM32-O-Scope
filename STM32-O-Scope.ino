@@ -16,9 +16,11 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 RTClock rt (RTCSEL_LSE); // initialise
 uint32 tt;
 
+// Time library - https://github.com/PaulStoffregen/Time 
 #include "Time.h"
+#define TZ    "UTC+1"
 
-// Be sure to use the latest version of the SPI libraries see stm32duino
+// Be sure to use the latest version of the SPI libraries see stm32duino.com - http://stm32duino.com/viewtopic.php?f=13&t=127
 #include <SPI.h>
 
 // SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
@@ -491,7 +493,7 @@ void showTime ()
   if (rt.getTime() != tt)
   {
     tt = rt.getTime();
-    TFT.setCursor(20, 10);
+    TFT.setCursor(5, 10);
     TFT.print(hour(tt));
     TFT.print(":");
     TFT.print(minute(tt));
@@ -503,7 +505,7 @@ void showTime ()
     TFT.print(month(tt));
     TFT.print("-");
     TFT.print(year(tt));
-    TFT.print(" UTC ");
+    TFT.print(" "TZ" ");
     // TFT.print(tt);
 
   }
@@ -747,7 +749,7 @@ void setCurrentTime() {
   serial_debug.print(month(t));
   serial_debug.print("/");
   serial_debug.print(year(t));
-  serial_debug.println("(UTC)");
+  serial_debug.println("("TZ")");
   
 }
 
