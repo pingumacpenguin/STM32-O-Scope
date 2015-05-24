@@ -164,7 +164,7 @@ void setup()
   sCmd.addCommand("Y",   increaseYposition);    // move trace Down
   sCmd.addCommand("P",   toggleTestPulseOn);    // Toggle the test pulse pin from high impedence input to square wave output.
   sCmd.addCommand("p",   toggleTestPulseOff);   // Toggle the Test pin from square wave test to high impedence input.
-  sCmd.addCommand("ATAT",  atAt);               // Mystery command... what is this rubbish in the buffer?
+  //sCmd.addCommand("ATAT",  atAt);               // Mystery command... what is this rubbish in the buffer?
   /*
   */
 
@@ -494,10 +494,19 @@ void showTime ()
   {
     tt = rt.getTime();
     TFT.setCursor(5, 10);
+    if (hour(tt) < 10){
+      TFT.print("0");
+    }
     TFT.print(hour(tt));
     TFT.print(":");
+    if (minute(tt) <10){
+      TFT.print("0");
+    }
     TFT.print(minute(tt));
     TFT.print(":");
+    if (second(tt) <10){
+      TFT.print("0");
+    }
     TFT.print(second(tt));
     TFT.print(" ");
     TFT.print(day(tt));
@@ -736,20 +745,30 @@ void setCurrentTime() {
   serial_debug.print(thisArg.toInt() );
   serial_debug.print(" ");
   setTime(thisArg.toInt());
-  time_t t = now();
-  rt.setTime(t);
-  serial_debug.print(hour(t));
+  time_t tt = now();
+  rt.setTime(tt);
+  if (hour(tt) <10){
+    serial_debug.print("0");
+  }
+  serial_debug.print(hour(tt));
   serial_debug.print(":");
-  serial_debug.print(minute(t));
+    if (minute(tt) <10){
+    serial_debug.print("0");
+  }
+  serial_debug.print(minute(tt));
   serial_debug.print(":");
-  serial_debug.print(second(t));
+    if (second(tt) <10){
+    serial_debug.print("0");
+  }
+  serial_debug.print(second(tt));
   serial_debug.print(" ");
-  serial_debug.print(day(t));
+  serial_debug.print(day(tt));
   serial_debug.print("/");
-  serial_debug.print(month(t));
+  serial_debug.print(month(tt));
   serial_debug.print("/");
-  serial_debug.print(year(t));
+  serial_debug.print(year(tt));
   serial_debug.println("("TZ")");
   
 }
+
 
