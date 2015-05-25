@@ -450,7 +450,7 @@ void TFTSamples (uint16_t beamColour)
   }
 }
 
-
+/*
 // Run a bunch of NOOPs to trim the inter ADC conversion gap
 void sweepDelay(unsigned long sweepDelayFactor) {
   volatile unsigned long i = 0;
@@ -458,6 +458,7 @@ void sweepDelay(unsigned long sweepDelayFactor) {
     __asm__ __volatile__ ("nop");
   }
 }
+*/
 
 void showLabels()
 {
@@ -472,7 +473,7 @@ void showLabels()
   TFT.print(" uS/Sample ");
   TFT.setTextSize(2);
   TFT.setCursor(10, 210);
-  TFT.print("1.0");
+  TFT.print("3.0");
   TFT.setTextSize(1);
   TFT.print(" V/Div ");
   TFT.setTextSize(2);
