@@ -16,7 +16,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 RTClock rt (RTCSEL_LSE); // initialise
 uint32 tt;
 
-// Time library - https://github.com/PaulStoffregen/Time 
+// Time library - https://github.com/PaulStoffregen/Time
 #include "Time.h"
 #define TZ    "UTC+1"
 
@@ -151,6 +151,7 @@ void setup()
   // Serial command setup
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("timestamp",   setCurrentTime);       // Set the current time based on a unix timestamp
+  sCmd.addCommand("date",        serialCurrentTime);      // Show the current time from the RTC
   sCmd.addCommand("s",   toggleSerial);         // Turns serial sample output on/off
   sCmd.addCommand("h",   toggleHold);           // Turns triggering on/off
   sCmd.addCommand("t",   decreaseTimebase);     // decrease Timebase by 10x
@@ -495,17 +496,17 @@ void showTime ()
   {
     tt = rt.getTime();
     TFT.setCursor(5, 10);
-    if (hour(tt) < 10){
+    if (hour(tt) < 10) {
       TFT.print("0");
     }
     TFT.print(hour(tt));
     TFT.print(":");
-    if (minute(tt) <10){
+    if (minute(tt) < 10) {
       TFT.print("0");
     }
     TFT.print(minute(tt));
     TFT.print(":");
-    if (second(tt) <10){
+    if (second(tt) < 10) {
       TFT.print("0");
     }
     TFT.print(second(tt));
@@ -741,24 +742,29 @@ static void DMA1_CH1_Event() {
 void setCurrentTime() {
   char *arg;
   arg = sCmd.next();
-  String thisArg=arg;
-  serial_debug.print("# Time command - ");
+  String thisArg = arg;
+  serial_debug.print("# Time command [");
   serial_debug.print(thisArg.toInt() );
-  serial_debug.print(" ");
+  serial_debug.println("]");
   setTime(thisArg.toInt());
   time_t tt = now();
   rt.setTime(tt);
-  if (hour(tt) <10){
+  serialCurrentTime();
+}
+
+void serialCurrentTime() {
+  serial_debug.print("# Current time - ");
+  if (hour(tt) < 10) {
     serial_debug.print("0");
   }
   serial_debug.print(hour(tt));
   serial_debug.print(":");
-    if (minute(tt) <10){
+  if (minute(tt) < 10) {
     serial_debug.print("0");
   }
   serial_debug.print(minute(tt));
   serial_debug.print(":");
-    if (second(tt) <10){
+  if (second(tt) < 10) {
     serial_debug.print("0");
   }
   serial_debug.print(second(tt));
@@ -769,7 +775,7 @@ void setCurrentTime() {
   serial_debug.print("/");
   serial_debug.print(year(tt));
   serial_debug.println("("TZ")");
-  
+
 }
 
 
