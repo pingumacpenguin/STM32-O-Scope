@@ -141,6 +141,7 @@ void setup()
   serial_debug.begin();
   adc_calibrate(ADC1);
   adc_calibrate(ADC2);
+  setADCs (); //Setup ADC peripherals for interleaved continuous mode.
   // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
@@ -310,6 +311,25 @@ void graticule()
   }
 }
 
+void setADCs ()
+{
+//  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
+  int pinMapADCin = PIN_MAP[analogInPin].adc_channel;
+  adc_set_sample_rate(ADC1, ADC_SMPR_13_5);
+  adc_set_sample_rate(ADC2, ADC_SMPR_13_5);
+
+//  adc_reg_map *regs = dev->regs;
+  adc_set_reg_seqlen(ADC1, 1);
+  ADC1->regs->SQR3 = pinMapADCin;
+  ADC1->regs->CR2 |= ADC_CR2_CONT; // | ADC_CR2_DMA; // Set continuous mode and DMA
+  ADC1->regs->CR1 |= ADC_CR1_FASTINT; // Interleaved mode
+  ADC1->regs->CR2 |= ADC_CR2_SWSTART;
+  
+  ADC2->regs->CR2 |= ADC_CR2_CONT; // ADC 2 continuos
+  ADC2->regs->SQR3 = pinMapADCin;
+}
+
+
 // Crude triggering on positive or negative or either change from previous to current sample.
 void trigger()
 {
@@ -400,31 +420,16 @@ void takeSamples ()
 {
   // This loop uses dual interleaved mode to get the best performance out of the ADCs
   //
-  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
-  int pinMapPB0 = PIN_MAP[analogInPin].adc_channel;
-  adc_set_sample_rate(dev, ADC_SMPR_13_5);
-
-  adc_reg_map *regs = dev->regs;
-  adc_set_reg_seqlen(dev, 1);
-  regs->SQR3 = pinMapPB0;
-
-  adc_set_sample_rate(ADC2, ADC_SMPR_13_5);
-
-  regs->CR2 |= ADC_CR2_CONT; // | ADC_CR2_DMA; // Set continuous mode and DMA
-  ADC1->regs->CR1 |= ADC_CR1_FASTINT; // Interleaved mode
-
-  ADC2->regs->CR2 |= ADC_CR2_CONT; // ADC 2 continuos
-  ADC2->regs->SQR3 = pinMapPB0;
 
   dma_init(DMA1);
   dma_attach_interrupt(DMA1, DMA_CH1, DMA1_CH1_Event);
 
-  adc_dma_enable(dev);
+  adc_dma_enable(ADC1);
   dma_setup_transfer(DMA1, DMA_CH1, &ADC1->regs->DR, DMA_SIZE_32BITS,
                      dataPoints32, DMA_SIZE_32BITS, (DMA_MINC_MODE | DMA_TRNS_CMPLT));// Receive buffer DMA
   dma_set_num_transfers(DMA1, DMA_CH1, maxSamples / 2);
   dma1_ch1_Active = 1;
-  regs->CR2 |= ADC_CR2_SWSTART;
+//  regs->CR2 |= ADC_CR2_SWSTART; //moved to setADC
   dma_enable(DMA1, DMA_CH1); // Enable the channel and start the transfer.
   //adc_calibrate(ADC1);
   //adc_calibrate(ADC2);
