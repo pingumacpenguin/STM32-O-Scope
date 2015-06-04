@@ -64,6 +64,7 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
+// define as PC13 on the "Red/Blue Pill" boards and PD2 on the "Yellow Pill R"
 #define BOARD_LED PC13
 
 // Display colours
@@ -101,7 +102,11 @@ int16_t myHeight ;
 
 //Trigger stuff
 boolean notTriggered ;
-int16_t triggerSensitivity = 50;
+
+// Sensitivity is the necessary change in AD value which will cause the scope to trigger. 
+// If VAD=3.3 volts, then 1 unit of sensitivity is around 0.8mV but this assumes no external attenuator. Calibration is needed to match this with the magnitude of the input signal.
+int32_t triggerSensitivity = 20;
+
 int16_t retriggerDelay = 10;
 int8_t triggerType = 1;
 
