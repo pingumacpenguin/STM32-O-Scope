@@ -1,7 +1,7 @@
 /*.
 (c) Andrew Hull - 2015
 
-STM32-O-Scope - released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
+STM32-O-Scope - aka "The Pig Scope" or pigScope released under the GNU GENERAL PUBLIC LICENSE Version 2, June 1991
 
 https://github.com/pingumacpenguin/STM32-O-Scope
 
@@ -30,7 +30,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // -----------------------------------------------------------
 
 //
-// STM32F103C8XX Pins - chosen for ease of use on the "Blue Pill" board
+// STM32F103C8XX Pin numbers - chosen for ease of use on the "Blue Pill" board
 
 // Touch Panel Pins
 // T_CLK T_CS T_DIN T_DOUT T_IRQ
@@ -196,24 +196,24 @@ void setup()
   //
   // Serial command setup
   // Setup callbacks for SerialCommand commands
-  sCmd.addCommand("timestamp",   setCurrentTime);       // Set the current time based on a unix timestamp
-  sCmd.addCommand("date",        serialCurrentTime);      // Show the current time from the RTC
-  sCmd.addCommand("s",   toggleSerial);         // Turns serial sample output on/off
-  sCmd.addCommand("h",   toggleHold);           // Turns triggering on/off
-  sCmd.addCommand("t",   decreaseTimebase);     // decrease Timebase by 10x
-  sCmd.addCommand("T",   increaseTimebase);     // increase Timebase by 10x
-  sCmd.addCommand("z",   decreaseZoomFactor);   // decrease Zoom
-  sCmd.addCommand("Z",   increaseZoomFactor);   // increase Zoom
-  sCmd.addCommand("r",   scrollRight);          // start onscreen trace further right
-  sCmd.addCommand("l",   scrollLeft);           // start onscreen trae further left
-  sCmd.addCommand("e",   incEdgeType);          // increment the trigger edge type 0 1 2 0 1 2 etc
-  sCmd.addCommand("y",   decreaseYposition);    // move trace Down
-  sCmd.addCommand("Y",   increaseYposition);    // move trace Down
-  sCmd.addCommand("P",   toggleTestPulseOn);    // Toggle the test pulse pin from high impedence input to square wave output.
-  sCmd.addCommand("p",   toggleTestPulseOff);   // Toggle the Test pin from square wave test to high impedence input.
-  //sCmd.addCommand("ATAT",  atAt);               // Mystery command... what is this rubbish in the buffer?
-  /*
-  */
+  sCmd.addCommand("timestamp",   setCurrentTime);          // Set the current time based on a unix timestamp
+  sCmd.addCommand("date",        serialCurrentTime);       // Show the current time from the RTC
+#if defined TOUCH_SCREEN_AVAILABLE
+  sCmd.addCommand("touchcalibrate", touchCalibrate);       // Calibrate Touch Panel
+#endif
+  sCmd.addCommand("s",   toggleSerial);                    // Turns serial sample output on/off
+  sCmd.addCommand("h",   toggleHold);                      // Turns triggering on/off
+  sCmd.addCommand("t",   decreaseTimebase);                // decrease Timebase by 10x
+  sCmd.addCommand("T",   increaseTimebase);                // increase Timebase by 10x
+  sCmd.addCommand("z",   decreaseZoomFactor);              // decrease Zoom
+  sCmd.addCommand("Z",   increaseZoomFactor);              // increase Zoom
+  sCmd.addCommand("r",   scrollRight);                     // start onscreen trace further right
+  sCmd.addCommand("l",   scrollLeft);                      // start onscreen trae further left
+  sCmd.addCommand("e",   incEdgeType);                     // increment the trigger edge type 0 1 2 0 1 2 etc
+  sCmd.addCommand("y",   decreaseYposition);               // move trace Down
+  sCmd.addCommand("Y",   increaseYposition);               // move trace Down
+  sCmd.addCommand("P",   toggleTestPulseOn);               // Toggle the test pulse pin from high impedence input to square wave output.
+  sCmd.addCommand("p",   toggleTestPulseOff);              // Toggle the Test pin from square wave test to high impedence input.
 
   sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
   sCmd.clearBuffer();
@@ -249,48 +249,19 @@ void setup()
   myHeight   = TFT.width() ;
   myWidth  = TFT.height();
   TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
+#if defined TOUCH_SCREEN_AVAILABLE
   touchCalibrate();
+#endif
 
   TFT.setRotation(LANDSCAPE);
   clearTFT();
-  /*
-    TFT.setTextSize(2);                           // Small 26 char / line
-    //TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
-    TFT.setCursor(0, 50);
-    TFT.print(" STM-O-Scope by Andy Hull") ;
-    TFT.setCursor(0, 70);
-    TFT.print("      Inspired by");
-    TFT.setCursor(0, 90);
-    TFT.print("      Ray Burnette.");
-    TFT.setCursor(0, 130);
-    TFT.print("      Victor PV");
-    TFT.setCursor(0, 150);
-    TFT.print("      Roger Clark");
-    TFT.setCursor(0, 170);
-    TFT.print(" and all at stm32duino.com");
-    TFT.setCursor(0, 190);
-    TFT.print(" CH1 Probe STM32F Pin [");
-    TFT.print(analogInPin);
-    TFT.print("]");
-    TFT.setCursor(0, 220);
-    TFT.setTextSize(1);
-    TFT.print("     GNU GENERAL PUBLIC LICENSE Version 2 ");
-    TFT.setTextSize(2);
-    TFT.setRotation(PORTRAIT);
-  */
-  showCredits();
-  //xZoomFactor = maxSamples / myWidth;
-  graticule();
+  showCredits(); // Honourable mentions ;¬)
+  showGraticule();
   delay(5000) ;
   clearTFT();
-  //triggerHeld = 0 ;
   notTriggered = true;
-  //triggerSensitivity = 16 ;
-  graticule();
+  showGraticule();
   showLabels();
-  //
-
-  //serial_debug.flush();
 }
 
 void loop()
@@ -316,7 +287,7 @@ void loop()
   {
     // Wait for trigger
     trigger();
-
+    showGraticule();
     if ( !notTriggered )
     {
       blinkLED();
@@ -324,8 +295,8 @@ void loop()
       TFTSamples(BEAM_OFF_COLOUR);
       showLabels();
 
-      // Show the Graticule
-      graticule();
+      // Show the showGraticule
+      showGraticule();
       //notTriggered = true;
 
       // Take our samples
@@ -351,7 +322,7 @@ void loop()
   // sweepDelayFactor ++;
 }
 
-void graticule()
+void showGraticule()
 {
   TFT.drawRect(0, 0, myHeight, myWidth, GRATICULE_COLOUR);
   // Dot grid - ten distinct divisions (9 dots) in both X and Y axis.
@@ -725,7 +696,7 @@ void decreaseZoomFactor() {
 
 void clearTrace() {
   TFTSamples(BEAM_OFF_COLOUR);
-  graticule();
+  showGraticule();
 }
 
 void showTrace() {
@@ -870,6 +841,7 @@ void serialCurrentTime() {
 
 }
 
+#if defined TOUCH_SCREEN_AVAILABLE
 void touchCalibrate() {
 
   for (uint8_t screenLayout = 0 ; screenLayout < 4 ; screenLayout += 1)
@@ -885,7 +857,7 @@ void touchCalibrate() {
   TFT.drawCircle(myHeight / 2, myWidth / 2, 10, GRATICULE_COLOUR);
   //delay(5000);
   readTouchCalibrationCoordinates();
-
+  clearTFT();
 }
 
 void readTouchCalibrationCoordinates()
@@ -970,4 +942,4 @@ void showCredits() {
   TFT.setRotation(PORTRAIT);
 }
 
-
+#endif
