@@ -15,15 +15,20 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // Be sure to use the latest version of the SPI libraries see stm32duino.com - http://stm32duino.com/viewtopic.php?f=13&t=127
 #include <SPI.h>
 
+
+
+// Define the orientation of the touch screen. Further
+// information can be found in the UTouch library documentation.
+
+#define TOUCH_SCREEN_AVAILABLE
+#define TOUCH_ORIENTATION  LANDSCAPE
+
+#if defined TOUCH_SCREEN_AVAILABLE
 // UTouch Library
 // http://www.rinkydinkelectronics.com/library.php?id=56
 #include <UTouch.h>
 
-// Define the orientation of the touch screen. Further
-// information can be found in the instructions.
-#define TOUCH_SCREEN_AVAILABLE
-#define TOUCH_ORIENTATION  LANDSCAPE
-
+#endif
 // Initialize touchscreen
 // ----------------------
 // Set the pins to the correct ones for your STM32F103 board
@@ -47,6 +52,36 @@ UTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
 #include "RTClock.h"
 RTClock rt (RTCSEL_LSE); // initialise
 uint32 tt;
+
+// Define the Base address of the RTC  registers (battery backed up CMOS Ram), so we can use them for config of touch screen and other calibration.
+// See http://stm32duino.com/viewtopic.php?f=15&t=132&hilit=rtc&start=40 for a more details about the RTC NVRam
+// 10x 16 bit registers are available on the STM32F103CXXX more on the higher density device. 
+ 
+#define BKP_REG_BASE   (uint32_t *)(0x40006C00 +0x04)
+
+static inline int readBKP(int registerNumber)
+{
+  if (registerNumber > 9)
+  {
+    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
+  }
+  return *(BKP_REG_BASE + registerNumber) & 0xffff;
+}
+
+static inline void writeBKP(int registerNumber, int value)
+{
+  if (registerNumber > 9)
+  {
+    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
+  }
+
+  *(BKP_REG_BASE + registerNumber) = value & 0xffff;
+}
+
+// #define register names 
+#define  TOUCH_CALIB_X 0
+#define  TOUCH_CALIB_Y 1
+#define  TOUCH_CALIB_Z 2
 
 // Time library - https://github.com/PaulStoffregen/Time
 #include "Time.h"
@@ -198,9 +233,11 @@ void setup()
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("timestamp",   setCurrentTime);          // Set the current time based on a unix timestamp
   sCmd.addCommand("date",        serialCurrentTime);       // Show the current time from the RTC
+  
 #if defined TOUCH_SCREEN_AVAILABLE
   sCmd.addCommand("touchcalibrate", touchCalibrate);       // Calibrate Touch Panel
 #endif
+
   sCmd.addCommand("s",   toggleSerial);                    // Turns serial sample output on/off
   sCmd.addCommand("h",   toggleHold);                      // Turns triggering on/off
   sCmd.addCommand("t",   decreaseTimebase);                // decrease Timebase by 10x
@@ -224,9 +261,10 @@ void setup()
   //pinMode(TFT_LED, OUTPUT);
   //analogWrite(TFT_LED, 127);
 
-#if defined TOUCH_SCREEN_AVAILABLE
+
   // Setup Touch Screen
   // http://www.rinkydinkelectronics.com/library.php?id=56
+#if defined TOUCH_SCREEN_AVAILABLE
   myTouch.InitTouch();
   myTouch.setPrecision(PREC_MEDIUM);
 #endif
@@ -843,7 +881,7 @@ void serialCurrentTime() {
 
 #if defined TOUCH_SCREEN_AVAILABLE
 void touchCalibrate() {
-
+  // showGraticule();
   for (uint8_t screenLayout = 0 ; screenLayout < 4 ; screenLayout += 1)
   {
     TFT.setRotation(screenLayout);
@@ -854,7 +892,7 @@ void touchCalibrate() {
   }
   TFT.setRotation(PORTRAIT);
   TFT.drawCircle(myHeight / 2, myWidth / 2, 20, GRATICULE_COLOUR);
-  TFT.drawCircle(myHeight / 2, myWidth / 2, 10, GRATICULE_COLOUR);
+  TFT.fillCircle(myHeight / 2, myWidth / 2, 10, BEAM1_COLOUR);
   //delay(5000);
   readTouchCalibrationCoordinates();
   clearTFT();
@@ -915,6 +953,7 @@ void readTouchCalibrationCoordinates()
   // cx = tx / iter;
   // cy = ty / iter;
 }
+#endif
 
 void showCredits() {
   TFT.setTextSize(2);                           // Small 26 char / line
@@ -942,4 +981,4 @@ void showCredits() {
   TFT.setRotation(PORTRAIT);
 }
 
-#endif
+//#endif
