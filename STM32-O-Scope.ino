@@ -55,8 +55,8 @@ uint32 tt;
 
 // Define the Base address of the RTC  registers (battery backed up CMOS Ram), so we can use them for config of touch screen and other calibration.
 // See http://stm32duino.com/viewtopic.php?f=15&t=132&hilit=rtc&start=40 for a more details about the RTC NVRam
-// 10x 16 bit registers are available on the STM32F103CXXX more on the higher density device. 
- 
+// 10x 16 bit registers are available on the STM32F103CXXX more on the higher density device.
+
 #define BKP_REG_BASE   (uint32_t *)(0x40006C00 +0x04)
 
 static inline int readBKP(int registerNumber)
@@ -78,7 +78,7 @@ static inline void writeBKP(int registerNumber, int value)
   *(BKP_REG_BASE + registerNumber) = value & 0xffff;
 }
 
-// #define register names 
+// #define register names
 #define  TOUCH_CALIB_X 0
 #define  TOUCH_CALIB_Y 1
 #define  TOUCH_CALIB_Z 2
@@ -233,7 +233,7 @@ void setup()
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("timestamp",   setCurrentTime);          // Set the current time based on a unix timestamp
   sCmd.addCommand("date",        serialCurrentTime);       // Show the current time from the RTC
-  
+
 #if defined TOUCH_SCREEN_AVAILABLE
   sCmd.addCommand("touchcalibrate", touchCalibrate);       // Calibrate Touch Panel
 #endif
@@ -304,21 +304,10 @@ void setup()
 
 void loop()
 {
-  //serial_debug.println("blah");
 
 #if defined TOUCH_SCREEN_AVAILABLE
-  if (myTouch.dataAvailable())
-  {
-    myTouch.read();
-    uint32_t touchX = myTouch.getX();
-    uint32_t touchY = myTouch.getY();
-    serial_debug.print("# Touched ");
-    serial_debug.print(touchX);
-    serial_debug.print(",");
-    serial_debug.println(touchY);
-  }
+  readTouch();
 #endif
-
 
   sCmd.readSerial();     // Process serial commands
   if ( !triggerHeld  )
@@ -953,6 +942,22 @@ void readTouchCalibrationCoordinates()
   // cx = tx / iter;
   // cy = ty / iter;
 }
+
+void readTouch() {
+
+  if (myTouch.dataAvailable())
+  {
+    myTouch.read();
+    uint32_t touchX = myTouch.getX();
+    uint32_t touchY = myTouch.getY();
+    serial_debug.print("# Touched ");
+    serial_debug.print(touchX);
+    serial_debug.print(",");
+    serial_debug.println(touchY);
+    TFT.drawPixel(touchY, (myHeight - touchX), BEAM1_COLOUR);
+  }
+}
+
 #endif
 
 void showCredits() {
@@ -982,3 +987,4 @@ void showCredits() {
 }
 
 //#endif
+
