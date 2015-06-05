@@ -35,7 +35,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // Touch Panel Pins
 // T_CLK T_CS T_DIN T_DOUT T_IRQ
 // PB12 PB13 PB14 PB15 PA8
-// Example wire colours Brown,Red,Orange,Yellow,Violet 
+// Example wire colours Brown,Red,Orange,Yellow,Violet
 
 #if defined TOUCH_SCREEN_AVAILABLE
 
@@ -216,9 +216,10 @@ void setup()
   */
 
   sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
-  //sCmd.clearBuffer();
+  sCmd.clearBuffer();
+
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
-  // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quouted as drawing 80mA at full brightness)
+  // A safer option would be to add a suitable transistor capable of sinking or sourcing 100mA (the ILI9341 backlight on my display is quoted as drawing 80mA at full brightness)
   // Alternatively, connect the backlight to 3v3 for an always on, bright display.
   //pinMode(TFT_LED, OUTPUT);
   //analogWrite(TFT_LED, 127);
@@ -231,9 +232,10 @@ void setup()
 #endif
 
 
-  // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
+  // The test pulse is a square wave of approx 3.3V (i.e. the STM32 supply voltage) at approx 490  Hz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
+  // therefore if we want a precise test frequency we can't just use the default uncooked 50% duty cycle PWM output.
   timer_set_period(Timer3, 1000);
   toggleTestPulseOn();
 
@@ -242,33 +244,41 @@ void setup()
 
   TFT.begin();
   // initialize the display
-  TFT.setRotation(LANDSCAPE);
   clearTFT();
-  TFT.setTextSize(2);                           // Small 26 char / line
-  TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
-  TFT.setCursor(0, 50);
-  TFT.print(" STM-O-Scope by Andy Hull") ;
-  TFT.setCursor(0, 70);
-  TFT.print("      Inspired by");
-  TFT.setCursor(0, 90);
-  TFT.print("      Ray Burnette.");
-  TFT.setCursor(0, 130);
-  TFT.print("      Victor PV");
-  TFT.setCursor(0, 150);
-  TFT.print("      Roger Clark");
-  TFT.setCursor(0, 170);
-  TFT.print(" and all at stm32duino.com");
-  TFT.setCursor(0, 190);
-  TFT.print(" CH1 Probe STM32F Pin [");
-  TFT.print(analogInPin);
-  TFT.print("]");
-  TFT.setCursor(0, 220);
-  TFT.setTextSize(1);
-  TFT.print("     GNU GENERAL PUBLIC LICENSE Version 2 ");
-  TFT.setTextSize(2);
   TFT.setRotation(PORTRAIT);
   myHeight   = TFT.width() ;
   myWidth  = TFT.height();
+  TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
+  touchCalibrate();
+
+  TFT.setRotation(LANDSCAPE);
+  clearTFT();
+  /*
+    TFT.setTextSize(2);                           // Small 26 char / line
+    //TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
+    TFT.setCursor(0, 50);
+    TFT.print(" STM-O-Scope by Andy Hull") ;
+    TFT.setCursor(0, 70);
+    TFT.print("      Inspired by");
+    TFT.setCursor(0, 90);
+    TFT.print("      Ray Burnette.");
+    TFT.setCursor(0, 130);
+    TFT.print("      Victor PV");
+    TFT.setCursor(0, 150);
+    TFT.print("      Roger Clark");
+    TFT.setCursor(0, 170);
+    TFT.print(" and all at stm32duino.com");
+    TFT.setCursor(0, 190);
+    TFT.print(" CH1 Probe STM32F Pin [");
+    TFT.print(analogInPin);
+    TFT.print("]");
+    TFT.setCursor(0, 220);
+    TFT.setTextSize(1);
+    TFT.print("     GNU GENERAL PUBLIC LICENSE Version 2 ");
+    TFT.setTextSize(2);
+    TFT.setRotation(PORTRAIT);
+  */
+  showCredits();
   //xZoomFactor = maxSamples / myWidth;
   graticule();
   delay(5000) ;
@@ -278,6 +288,7 @@ void setup()
   //triggerSensitivity = 16 ;
   graticule();
   showLabels();
+  //
 
   //serial_debug.flush();
 }
@@ -857,6 +868,106 @@ void serialCurrentTime() {
   serial_debug.print(year(tt));
   serial_debug.println("("TZ")");
 
+}
+
+void touchCalibrate() {
+
+  for (uint8_t screenLayout = 0 ; screenLayout < 4 ; screenLayout += 1)
+  {
+    TFT.setRotation(screenLayout);
+    TFT.setCursor(0, 10);
+    TFT.print("  Press and hold centre circle ");
+    TFT.setCursor(0, 20);
+    TFT.print("   to calibrate touch panel.");
+  }
+  TFT.setRotation(PORTRAIT);
+  TFT.drawCircle(myHeight / 2, myWidth / 2, 20, GRATICULE_COLOUR);
+  TFT.drawCircle(myHeight / 2, myWidth / 2, 10, GRATICULE_COLOUR);
+  //delay(5000);
+  readTouchCalibrationCoordinates();
+
+}
+
+void readTouchCalibrationCoordinates()
+{
+  int calibrationTries = 6000;
+  int failCount = 0;
+  int thisCount = 0;
+  uint32_t tx = 0;
+  uint32_t ty = 0;
+  boolean OK = false;
+
+  while (OK == false)
+  {
+    while ((myTouch.dataAvailable() == false) && thisCount < calibrationTries) {
+      thisCount += 1;
+      delay(1);
+    }
+    if ((myTouch.dataAvailable() == false)) {
+      return;
+    }
+    // myGLCD.print("*  HOLD!  *", CENTER, text_y_center);
+    thisCount = 0;
+    while ((myTouch.dataAvailable() == true) && (thisCount < calibrationTries) && (failCount < 10000))
+    {
+      myTouch.calibrateRead();
+      if (!((myTouch.TP_X == 65535) || (myTouch.TP_Y == 65535)))
+      {
+        tx += myTouch.TP_X;
+        ty += myTouch.TP_Y;
+        thisCount++;
+      }
+      else
+        failCount++;
+    }
+    if (thisCount >= calibrationTries)
+    {
+      for (thisCount = 10 ; thisCount < 100 ; thisCount += 10)
+      {
+        TFT.drawCircle(myHeight / 2, myWidth / 2, thisCount, GRATICULE_COLOUR);
+      }
+      delay(500);
+      OK = true;
+    }
+    else
+    {
+      tx = 0;
+      ty = 0;
+      thisCount = 0;
+    }
+    if (failCount >= 10000)
+      // Didn't calibrate so just leave calibration as is.
+      return;
+  }
+  // Change calibration data from here..
+  // cx = tx / iter;
+  // cy = ty / iter;
+}
+
+void showCredits() {
+  TFT.setTextSize(2);                           // Small 26 char / line
+  //TFT.setTextColor(CURSOR_COLOUR, BEAM_OFF_COLOUR) ;
+  TFT.setCursor(0, 50);
+  TFT.print(" STM-O-Scope by Andy Hull") ;
+  TFT.setCursor(0, 70);
+  TFT.print("      Inspired by");
+  TFT.setCursor(0, 90);
+  TFT.print("      Ray Burnette.");
+  TFT.setCursor(0, 130);
+  TFT.print("      Victor PV");
+  TFT.setCursor(0, 150);
+  TFT.print("      Roger Clark");
+  TFT.setCursor(0, 170);
+  TFT.print(" and all at stm32duino.com");
+  TFT.setCursor(0, 190);
+  TFT.print(" CH1 Probe STM32F Pin [");
+  TFT.print(analogInPin);
+  TFT.print("]");
+  TFT.setCursor(0, 220);
+  TFT.setTextSize(1);
+  TFT.print("     GNU GENERAL PUBLIC LICENSE Version 2 ");
+  TFT.setTextSize(2);
+  TFT.setRotation(PORTRAIT);
 }
 
 
