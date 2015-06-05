@@ -12,6 +12,38 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #include "Adafruit_ILI9341_STM.h"
 #include "Adafruit_GFX_AS.h"
 
+// Be sure to use the latest version of the SPI libraries see stm32duino.com - http://stm32duino.com/viewtopic.php?f=13&t=127
+#include <SPI.h>
+
+// UTouch Library
+// http://www.rinkydinkelectronics.com/library.php?id=56
+#include <UTouch.h>
+
+// Define the orientation of the touch screen. Further
+// information can be found in the instructions.
+#define TOUCH_SCREEN_AVAILABLE
+#define TOUCH_ORIENTATION  LANDSCAPE
+
+// Initialize touchscreen
+// ----------------------
+// Set the pins to the correct ones for your STM32F103 board
+// -----------------------------------------------------------
+
+//
+// STM32F103C8XX Pins - chosen for ease of use on the "Blue Pill" board
+
+// Touch Panel Pins
+// T_CLK T_CS T_DIN T_DOUT T_IRQ
+// PB12 PB13 PB14 PB15 PA8
+// Example wire colours Brown,Red,Orange,Yellow,Violet 
+
+#if defined TOUCH_SCREEN_AVAILABLE
+
+UTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
+
+#endif
+
+
 #include "RTClock.h"
 RTClock rt (RTCSEL_LSE); // initialise
 uint32 tt;
@@ -19,9 +51,6 @@ uint32 tt;
 // Time library - https://github.com/PaulStoffregen/Time
 #include "Time.h"
 #define TZ    "UTC+1"
-
-// Be sure to use the latest version of the SPI libraries see stm32duino.com - http://stm32duino.com/viewtopic.php?f=13&t=127
-#include <SPI.h>
 
 // SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
 #include <SerialCommand.h>
@@ -103,7 +132,7 @@ int16_t myHeight ;
 //Trigger stuff
 boolean notTriggered ;
 
-// Sensitivity is the necessary change in AD value which will cause the scope to trigger. 
+// Sensitivity is the necessary change in AD value which will cause the scope to trigger.
 // If VAD=3.3 volts, then 1 unit of sensitivity is around 0.8mV but this assumes no external attenuator. Calibration is needed to match this with the magnitude of the input signal.
 int32_t triggerSensitivity = 20;
 
@@ -143,16 +172,27 @@ volatile static bool dma1_ch1_Active;
 
 void setup()
 {
-  serial_debug.begin();
-  adc_calibrate(ADC1);
-  adc_calibrate(ADC2);
-  setADCs (); //Setup ADC peripherals for interleaved continuous mode.
+
   // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
 #if defined BOARD_LED
   pinMode(BOARD_LED, OUTPUT);
   digitalWrite(BOARD_LED, HIGH);
+  delay(1000);
+  digitalWrite(BOARD_LED, LOW);
+  delay(1000);
 #endif
 
+  serial_debug.begin();
+  adc_calibrate(ADC1);
+  adc_calibrate(ADC2);
+  setADCs (); //Setup ADC peripherals for interleaved continuous mode.
+  /*
+    // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
+  #if defined BOARD_LED
+    pinMode(BOARD_LED, OUTPUT);
+    digitalWrite(BOARD_LED, HIGH);
+  #endif
+  */
   //
   // Serial command setup
   // Setup callbacks for SerialCommand commands
@@ -182,6 +222,13 @@ void setup()
   // Alternatively, connect the backlight to 3v3 for an always on, bright display.
   //pinMode(TFT_LED, OUTPUT);
   //analogWrite(TFT_LED, 127);
+
+#if defined TOUCH_SCREEN_AVAILABLE
+  // Setup Touch Screen
+  // http://www.rinkydinkelectronics.com/library.php?id=56
+  myTouch.InitTouch();
+  myTouch.setPrecision(PREC_MEDIUM);
+#endif
 
 
   // Square wave 3.3V (STM32 supply voltage) at approx 490  Hz
@@ -215,7 +262,7 @@ void setup()
   TFT.print(" CH1 Probe STM32F Pin [");
   TFT.print(analogInPin);
   TFT.print("]");
-  TFT.setCursor(0,220);
+  TFT.setCursor(0, 220);
   TFT.setTextSize(1);
   TFT.print("     GNU GENERAL PUBLIC LICENSE Version 2 ");
   TFT.setTextSize(2);
@@ -238,6 +285,20 @@ void setup()
 void loop()
 {
   //serial_debug.println("blah");
+
+#if defined TOUCH_SCREEN_AVAILABLE
+  if (myTouch.dataAvailable())
+  {
+    myTouch.read();
+    uint32_t touchX = myTouch.getX();
+    uint32_t touchY = myTouch.getY();
+    serial_debug.print("# Touched ");
+    serial_debug.print(touchX);
+    serial_debug.print(",");
+    serial_debug.println(touchY);
+  }
+#endif
+
 
   sCmd.readSerial();     // Process serial commands
   if ( !triggerHeld  )
@@ -318,18 +379,18 @@ void graticule()
 
 void setADCs ()
 {
-//  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
+  //  const adc_dev *dev = PIN_MAP[analogInPin].adc_device;
   int pinMapADCin = PIN_MAP[analogInPin].adc_channel;
   adc_set_sample_rate(ADC1, ADC_SMPR_13_5);
   adc_set_sample_rate(ADC2, ADC_SMPR_13_5);
 
-//  adc_reg_map *regs = dev->regs;
+  //  adc_reg_map *regs = dev->regs;
   adc_set_reg_seqlen(ADC1, 1);
   ADC1->regs->SQR3 = pinMapADCin;
   ADC1->regs->CR2 |= ADC_CR2_CONT; // | ADC_CR2_DMA; // Set continuous mode and DMA
   ADC1->regs->CR1 |= ADC_CR1_FASTINT; // Interleaved mode
   ADC1->regs->CR2 |= ADC_CR2_SWSTART;
-  
+
   ADC2->regs->CR2 |= ADC_CR2_CONT; // ADC 2 continuos
   ADC2->regs->SQR3 = pinMapADCin;
 }
@@ -434,7 +495,7 @@ void takeSamples ()
                      dataPoints32, DMA_SIZE_32BITS, (DMA_MINC_MODE | DMA_TRNS_CMPLT));// Receive buffer DMA
   dma_set_num_transfers(DMA1, DMA_CH1, maxSamples / 2);
   dma1_ch1_Active = 1;
-//  regs->CR2 |= ADC_CR2_SWSTART; //moved to setADC
+  //  regs->CR2 |= ADC_CR2_SWSTART; //moved to setADC
   dma_enable(DMA1, DMA_CH1); // Enable the channel and start the transfer.
   //adc_calibrate(ADC1);
   //adc_calibrate(ADC2);
