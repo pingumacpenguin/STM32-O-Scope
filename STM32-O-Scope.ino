@@ -248,7 +248,7 @@ void setup()
   // http://www.rinkydinkelectronics.com/library.php?id=56
 #if defined TOUCH_SCREEN_AVAILABLE
   myTouch.InitTouch();
-  myTouch.setPrecision(PREC_LOW);
+  myTouch.setPrecision(PREC_HI);
 #endif
 
 
@@ -934,8 +934,10 @@ void readTouch() {
   if (myTouch.dataAvailable())
   {
     myTouch.read();
+    // Note: This is corrected to account for different orientation of screen origin (x=0,y=0) in Adafruit lib from UTouch lib
     uint32_t touchY = myWidth - myTouch.getX();
     uint32_t touchX = myTouch.getY();
+    // 
     serial_debug.print("# Touched ");
     serial_debug.print(touchX);
     serial_debug.print(",");
