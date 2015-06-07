@@ -15,7 +15,8 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // Be sure to use the latest version of the SPI libraries see stm32duino.com - http://stm32duino.com/viewtopic.php?f=13&t=127
 #include <SPI.h>
 
-
+#define PORTRAIT 0
+#define LANDSCAPE 1
 
 // Define the orientation of the touch screen. Further
 // information can be found in the UTouch library documentation.
@@ -35,7 +36,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // -----------------------------------------------------------
 
 //
-// STM32F103C8XX Pin numbers - chosen for ease of use on the "Blue Pill" board
+// STM32F103C8XX Pin numbers - chosen for ease of use on the "Red Pill" and "Blue Pill" board
 
 // Touch Panel Pins
 // T_CLK T_CS T_DIN T_DOUT T_IRQ
@@ -48,6 +49,7 @@ UTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
 
 #endif
 
+// RTC and NVRam initialisation
 
 #include "RTClock.h"
 RTClock rt (RTCSEL_LSE); // initialise
@@ -59,26 +61,7 @@ uint32 tt;
 
 #define BKP_REG_BASE   (uint32_t *)(0x40006C00 +0x04)
 
-static inline int readBKP(int registerNumber)
-{
-  if (registerNumber > 9)
-  {
-    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
-  }
-  return *(BKP_REG_BASE + registerNumber) & 0xffff;
-}
-
-static inline void writeBKP(int registerNumber, int value)
-{
-  if (registerNumber > 9)
-  {
-    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
-  }
-
-  *(BKP_REG_BASE + registerNumber) = value & 0xffff;
-}
-
-// #define register names
+// #define NVRam register names for the touch calibration values.
 #define  TOUCH_CALIB_X 0
 #define  TOUCH_CALIB_Y 1
 #define  TOUCH_CALIB_Z 2
@@ -86,6 +69,8 @@ static inline void writeBKP(int registerNumber, int value)
 // Time library - https://github.com/PaulStoffregen/Time
 #include "Time.h"
 #define TZ    "UTC+1"
+
+// End RTC and NVRam initialization
 
 // SeralCommand -> https://github.com/kroimon/Arduino-SerialCommand.git
 #include <SerialCommand.h>
@@ -120,9 +105,6 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 
 #define TFT_LED        PA3     // Backlight 
 #define TEST_WAVE_PIN       PB0     // PWM 500 Hz 
-
-#define PORTRAIT 0
-#define LANDSCAPE 1
 
 // Create the lcd object
 Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
@@ -252,7 +234,7 @@ void setup()
   sCmd.addCommand("P",   toggleTestPulseOn);               // Toggle the test pulse pin from high impedence input to square wave output.
   sCmd.addCommand("p",   toggleTestPulseOff);              // Toggle the Test pin from square wave test to high impedence input.
 
-  sCmd.setDefaultHandler(unrecognized);          // Handler for command that isn't matched  (says "Unknown")
+  sCmd.setDefaultHandler(unrecognized);                    // Handler for command that isn't matched  (says "Unknown")
   sCmd.clearBuffer();
 
   // Backlight, use with caution, depending on your display, you may exceed the max current per pin if you use this method.
@@ -266,7 +248,7 @@ void setup()
   // http://www.rinkydinkelectronics.com/library.php?id=56
 #if defined TOUCH_SCREEN_AVAILABLE
   myTouch.InitTouch();
-  myTouch.setPrecision(PREC_MEDIUM);
+  myTouch.setPrecision(PREC_LOW);
 #endif
 
 
@@ -938,6 +920,10 @@ void readTouchCalibrationCoordinates()
       // Didn't calibrate so just leave calibration as is.
       return;
   }
+  serial_debug.print("# Calib x: ");
+  serial_debug.println(tx/thisCount,HEX);
+  serial_debug.print("# Calib y: ");
+  serial_debug.println(ty/thisCount,HEX);
   // Change calibration data from here..
   // cx = tx / iter;
   // cy = ty / iter;
@@ -948,13 +934,13 @@ void readTouch() {
   if (myTouch.dataAvailable())
   {
     myTouch.read();
-    uint32_t touchX = myTouch.getX();
-    uint32_t touchY = myTouch.getY();
+    uint32_t touchY = myWidth - myTouch.getX();
+    uint32_t touchX = myTouch.getY();
     serial_debug.print("# Touched ");
     serial_debug.print(touchX);
     serial_debug.print(",");
     serial_debug.println(touchY);
-    TFT.drawPixel(touchY, (myHeight - touchX), BEAM1_COLOUR);
+    TFT.drawPixel(touchX, touchY, BEAM1_COLOUR);
   }
 }
 
@@ -986,5 +972,22 @@ void showCredits() {
   TFT.setRotation(PORTRAIT);
 }
 
-//#endif
+static inline int readBKP(int registerNumber)
+{
+  if (registerNumber > 9)
+  {
+    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
+  }
+  return *(BKP_REG_BASE + registerNumber) & 0xffff;
+}
+
+static inline void writeBKP(int registerNumber, int value)
+{
+  if (registerNumber > 9)
+  {
+    registerNumber += 5; // skip over BKP_RTCCR,BKP_CR,BKP_CSR and 2 x Reserved registers
+  }
+
+  *(BKP_REG_BASE + registerNumber) = value & 0xffff;
+}
 
