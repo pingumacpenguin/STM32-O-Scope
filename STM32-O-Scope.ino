@@ -42,6 +42,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // T_CLK T_CS T_DIN T_DOUT T_IRQ
 // PB12 PB13 PB14 PB15 PA8
 // Example wire colours Brown,Red,Orange,Yellow,Violet
+// --------             Brown,Red,Orange,White,Grey
 
 #if defined TOUCH_SCREEN_AVAILABLE
 
@@ -60,6 +61,11 @@ uint32 tt;
 // 10x 16 bit registers are available on the STM32F103CXXX more on the higher density device.
 
 #define BKP_REG_BASE   (uint32_t *)(0x40006C00 +0x04)
+
+// Defined for power and sleep functions pwr.h and scb.h
+#include <libmaple/pwr.h>
+#include <libmaple/scb.h>
+
 
 // #define NVRam register names for the touch calibration values.
 #define  TOUCH_CALIB_X 0
@@ -111,11 +117,11 @@ Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Usi
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
 // define as PC13 on the "Red/Blue Pill" boards and PD2 on the "Yellow Pill R"
-#define BOARD_LED PC13
+#define BOARD_LED PD2
 
 // Display colours
 #define BEAM1_COLOUR ILI9341_GREEN
-//#define GRATICULE_COLOUR ILI9341_RED
+#define BEAM2_COLOUR ILI9341_RED
 #define GRATICULE_COLOUR 0x07FF
 #define BEAM_OFF_COLOUR ILI9341_BLACK
 #define CURSOR_COLOUR ILI9341_GREEN
@@ -203,18 +209,13 @@ void setup()
   adc_calibrate(ADC1);
   adc_calibrate(ADC2);
   setADCs (); //Setup ADC peripherals for interleaved continuous mode.
-  /*
-    // BOARD_LED blinks on triggering assuming you have an LED on your board. If not simply dont't define it at the start of the sketch.
-  #if defined BOARD_LED
-    pinMode(BOARD_LED, OUTPUT);
-    digitalWrite(BOARD_LED, HIGH);
-  #endif
-  */
+ 
   //
   // Serial command setup
   // Setup callbacks for SerialCommand commands
   sCmd.addCommand("timestamp",   setCurrentTime);          // Set the current time based on a unix timestamp
   sCmd.addCommand("date",        serialCurrentTime);       // Show the current time from the RTC
+  sCmd.addCommand("sleep",       sleepMode);               // Experimental - puts system to sleep
 
 #if defined TOUCH_SCREEN_AVAILABLE
   sCmd.addCommand("touchcalibrate", touchCalibrate);       // Calibrate Touch Panel
@@ -248,11 +249,11 @@ void setup()
   // http://www.rinkydinkelectronics.com/library.php?id=56
 #if defined TOUCH_SCREEN_AVAILABLE
   myTouch.InitTouch();
-  myTouch.setPrecision(PREC_HI);
+  myTouch.setPrecision(PREC_EXTREME);
 #endif
 
 
-  // The test pulse is a square wave of approx 3.3V (i.e. the STM32 supply voltage) at approx 490  Hz
+  // The test pulse is a square wave of approx 3.3V (i.e. the STM32 supply voltage) at approx 1 kHz
   // "The Arduino has a fixed PWM frequency of 490Hz" - and it appears that this is also true of the STM32F103 using the current STM32F03 libraries as per
   // STM32, Maple and Maple mini port to IDE 1.5.x - http://forum.arduino.cc/index.php?topic=265904.2520
   // therefore if we want a precise test frequency we can't just use the default uncooked 50% duty cycle PWM output.
@@ -316,13 +317,9 @@ void loop()
 
       //Display the samples
       TFTSamples(BEAM1_COLOUR);
-      /*
-      if (serialOutput)
-      {
-        serialSamples();
-      }
-      */
+  
     }
+    // Display the RTC time. 
     showTime();
   }
   // Wait before allowing a re-trigger
@@ -390,13 +387,6 @@ void setADCs ()
 // Crude triggering on positive or negative or either change from previous to current sample.
 void trigger()
 {
-  /*
-  for (uint16_t j = 0; j <= 1000 ; j++ )
-  {
-    analogRead(analogInPin);
-  }
-  */
-
   notTriggered = true;
   switch (triggerType) {
     case 1:
@@ -415,14 +405,13 @@ void triggerBoth()
 {
   triggerPoints[0] = analogRead(analogInPin);
   delayMicroseconds(20);
-  if (((analogRead(analogInPin) - triggerPoints[0] ) < triggerSensitivity) and ((triggerPoints[0] - analogRead(analogInPin) ) < triggerSensitivity)) {
+  if (((analogRead(analogInPin) - triggerPoints[0] ) < triggerSensitivity) or ((triggerPoints[0] - analogRead(analogInPin) ) < triggerSensitivity)) {
     notTriggered = false ;
   }
 }
 
 void triggerPositive() {
-  //triggerPoints[0] = analogRead(analogInPin);
-  //delayMicroseconds(20);
+
   triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[1] - triggerPoints[0] ) > triggerSensitivity) {
     notTriggered = false;
@@ -431,8 +420,7 @@ void triggerPositive() {
 }
 
 void triggerNegative() {
-  //triggerPoints[0] = analogRead(analogInPin);
-  //delayMicroseconds(20);
+
   triggerPoints[1] = analogRead(analogInPin);
   if ((triggerPoints[0] - triggerPoints[1] ) > triggerSensitivity) {
     notTriggered = false;
@@ -446,9 +434,11 @@ void incEdgeType() {
   {
     triggerType = 0;
   }
+  /*
   serial_debug.println(triggerPoints[0]);
   serial_debug.println(triggerPoints[1]);
   serial_debug.println(triggerType);
+  */
 }
 
 void clearTFT()
@@ -496,15 +486,7 @@ void takeSamples ()
 
   dma_disable(DMA1, DMA_CH1); //End of trasfer, disable DMA and Continuous mode.
   // regs->CR2 &= ~ADC_CR2_CONT;
-  /*
-  for (int16_t j = 0; j < maxSamples - 1  ; j++ )
-  {
 
-   uint16_t dataPointsAve =  (dataPoints32[j] + dataPoints[j+1])/2;
-
-    // dataPoints32[j] &=0x0FC00FC0;
-  }
-  */
 }
 
 
@@ -938,11 +920,13 @@ void readTouch() {
     uint32_t touchY = myWidth - myTouch.getX();
     uint32_t touchX = myTouch.getY();
     // 
+    
     serial_debug.print("# Touched ");
     serial_debug.print(touchX);
     serial_debug.print(",");
     serial_debug.println(touchY);
-    TFT.drawPixel(touchX, touchY, BEAM1_COLOUR);
+    
+    TFT.drawPixel(touchX, touchY, BEAM2_COLOUR);
   }
 }
 
@@ -992,4 +976,19 @@ static inline void writeBKP(int registerNumber, int value)
 
   *(BKP_REG_BASE + registerNumber) = value & 0xffff;
 }
+
+void sleepMode() 
+{
+  // Set PDDS and LPDS bits for standby mode, and set Clear WUF flag (required per datasheet):
+PWR_BASE->CR |= PWR_CR_CWUF;
+PWR_BASE->CR |= PWR_CR_PDDS;
+
+// set sleepdeep in the system control register
+SCB_BASE->SCR |= SCB_SCR_SLEEPDEEP;
+
+// Now go into stop mode, wake up on interrupt
+// disableClocks();
+asm("wfi");
+}
+
 
