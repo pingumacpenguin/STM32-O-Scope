@@ -979,6 +979,7 @@ static inline void writeBKP(int registerNumber, int value)
 
 void sleepMode() 
 {
+  serial_debug.println("# Nighty night!");
   // Set PDDS and LPDS bits for standby mode, and set Clear WUF flag (required per datasheet):
 PWR_BASE->CR |= PWR_CR_CWUF;
 PWR_BASE->CR |= PWR_CR_PDDS;
