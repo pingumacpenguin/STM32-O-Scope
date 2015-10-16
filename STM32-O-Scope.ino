@@ -18,18 +18,7 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 #define PORTRAIT 0
 #define LANDSCAPE 1
 
-// Define the orientation of the touch screen. Further
-// information can be found in the UTouch library documentation.
 
-#define TOUCH_SCREEN_AVAILABLE
-#define TOUCH_ORIENTATION  LANDSCAPE
-
-#if defined TOUCH_SCREEN_AVAILABLE
-// UTouch Library
-// http://www.rinkydinkelectronics.com/library.php?id=56
-#include <UTouch.h>
-
-#endif
 // Initialize touchscreen
 // ----------------------
 // Set the pins to the correct ones for your STM32F103 board
@@ -44,11 +33,25 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 // Example wire colours Brown,Red,Orange,Yellow,Violet
 // --------             Brown,Red,Orange,White,Grey
 
+
+// Also define the orientation of the touch screen. Further
+// information can be found in the UTouch library documentation.
+// 
+
+// This makes no sense.. (BUG) but if you don't actually have a touch screen, you need to declere it anyway then  #undef it below. 
+#define TOUCH_SCREEN_AVAILABLE
+
 #if defined TOUCH_SCREEN_AVAILABLE
-
+#define TOUCH_ORIENTATION  LANDSCAPE
+// UTouch Library
+// http://www.rinkydinkelectronics.com/library.php?id=56
+#include <UTouch.h>
 UTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
-
 #endif
+
+// This makes no sense.. (BUG) but if you don't actually have a touch screen, #undef it here. 
+#undef TOUCH_SCREEN_AVAILABLE
+
 
 // RTC and NVRam initialisation
 
@@ -110,14 +113,14 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 //
 
 #define TFT_LED        PA3     // Backlight 
-#define TEST_WAVE_PIN       PB0     // PWM 500 Hz 
+#define TEST_WAVE_PIN       PB1     // PWM 500 Hz 
 
 // Create the lcd object
 Adafruit_ILI9341_STM TFT = Adafruit_ILI9341_STM(TFT_CS, TFT_DC, TFT_RST); // Using hardware SPI
 
 // LED - blinks on trigger events - leave this undefined if your board has no controllable LED
 // define as PC13 on the "Red/Blue Pill" boards and PD2 on the "Yellow Pill R"
-#define BOARD_LED PD2
+#define BOARD_LED PB0
 
 // Display colours
 #define BEAM1_COLOUR ILI9341_GREEN
@@ -209,7 +212,7 @@ void setup()
   adc_calibrate(ADC1);
   adc_calibrate(ADC2);
   setADCs (); //Setup ADC peripherals for interleaved continuous mode.
- 
+
   //
   // Serial command setup
   // Setup callbacks for SerialCommand commands
@@ -251,6 +254,7 @@ void setup()
   myTouch.InitTouch();
   myTouch.setPrecision(PREC_EXTREME);
 #endif
+
 
 
   // The test pulse is a square wave of approx 3.3V (i.e. the STM32 supply voltage) at approx 1 kHz
@@ -317,9 +321,9 @@ void loop()
 
       //Display the samples
       TFTSamples(BEAM1_COLOUR);
-  
+
     }
-    // Display the RTC time. 
+    // Display the RTC time.
     showTime();
   }
   // Wait before allowing a re-trigger
@@ -903,9 +907,9 @@ void readTouchCalibrationCoordinates()
       return;
   }
   serial_debug.print("# Calib x: ");
-  serial_debug.println(tx/thisCount,HEX);
+  serial_debug.println(tx / thisCount, HEX);
   serial_debug.print("# Calib y: ");
-  serial_debug.println(ty/thisCount,HEX);
+  serial_debug.println(ty / thisCount, HEX);
   // Change calibration data from here..
   // cx = tx / iter;
   // cy = ty / iter;
@@ -919,13 +923,13 @@ void readTouch() {
     // Note: This is corrected to account for different orientation of screen origin (x=0,y=0) in Adafruit lib from UTouch lib
     uint32_t touchY = myWidth - myTouch.getX();
     uint32_t touchX = myTouch.getY();
-    // 
-    
+    //
+
     serial_debug.print("# Touched ");
     serial_debug.print(touchX);
     serial_debug.print(",");
     serial_debug.println(touchY);
-    
+
     TFT.drawPixel(touchX, touchY, BEAM2_COLOUR);
   }
 }
@@ -977,19 +981,19 @@ static inline void writeBKP(int registerNumber, int value)
   *(BKP_REG_BASE + registerNumber) = value & 0xffff;
 }
 
-void sleepMode() 
+void sleepMode()
 {
   serial_debug.println("# Nighty night!");
   // Set PDDS and LPDS bits for standby mode, and set Clear WUF flag (required per datasheet):
-PWR_BASE->CR |= PWR_CR_CWUF;
-PWR_BASE->CR |= PWR_CR_PDDS;
+  PWR_BASE->CR |= PWR_CR_CWUF;
+  PWR_BASE->CR |= PWR_CR_PDDS;
 
-// set sleepdeep in the system control register
-SCB_BASE->SCR |= SCB_SCR_SLEEPDEEP;
+  // set sleepdeep in the system control register
+  SCB_BASE->SCR |= SCB_SCR_SLEEPDEEP;
 
-// Now go into stop mode, wake up on interrupt
-// disableClocks();
-asm("wfi");
+  // Now go into stop mode, wake up on interrupt
+  // disableClocks();
+  asm("wfi");
 }
 
 
