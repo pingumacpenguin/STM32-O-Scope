@@ -76,7 +76,7 @@ uint32 tt;
 #define  TOUCH_CALIB_Z 2
 
 // Time library - https://github.com/PaulStoffregen/Time
-#include "Time1.h"
+#include "Time.h" //If you have issues with the default Time library change the name of this library to Time1 for example.
 #define TZ    "UTC+1"
 
 // End RTC and NVRam initialization
@@ -100,9 +100,9 @@ variants/generic_stm32f103c/board/board.h:#define BOARD_SPI2_SCK_PIN        PB13
 */
 
 // Additional  display specific signals (i.e. non SPI) for STM32F103C8T6 (Wire colour)
-#define TFT_DC      PA2//  PA0      //   (Green) 
-#define TFT_CS      PA0 // PA1      //   (Orange) 
-#define TFT_RST     PA1//  PA2      //   (Yellow)
+#define TFT_DC      PA0      //   (Green) 
+#define TFT_CS      PA1      //   (Orange) 
+#define TFT_RST     PA2      //   (Yellow)
 
 // Hardware SPI1 on the STM32F103C8T6 *ALSO* needs to be connected and pins are as follows.
 //
@@ -142,15 +142,15 @@ uint16_t signalY ;
 uint16_t signalY1;
 int16_t xZoomFactor = 1;
 // yZoomFactor (percentage)
-int16_t yZoomFactor = 100; //200
-int16_t yPosition = 0 ; //-150
+int16_t yZoomFactor = 100; //Adjusted to get 3.3V wave to fit on screen
+int16_t yPosition = 0 ;
 
 // Startup with sweep hold off or on
 boolean triggerHeld = 0 ;
 
 
 unsigned long sweepDelayFactor = 1;
-unsigned long timeBase = 200;  //100 Timebase in microseconds
+unsigned long timeBase = 200;  //Timebase in microseconds
 
 // Screen dimensions
 int16_t myWidth ;
@@ -161,7 +161,6 @@ boolean notTriggered ;
 
 // Sensitivity is the necessary change in AD value which will cause the scope to trigger.
 // If VAD=3.3 volts, then 1 unit of sensitivity is around 0.8mV but this assumes no external attenuator. Calibration is needed to match this with the magnitude of the input signal.
-int32_t triggerSensitivity = 40; //no longer used
 
 // Trigger is setup in one of 32 positions
 #define TRIGGER_POSITION_STEP ANALOG_MAX_VALUE/32
@@ -811,7 +810,7 @@ void atAt() {
 
 void toggleTestPulseOn () {
   pinMode(TEST_WAVE_PIN, OUTPUT);
-  analogWrite(TEST_WAVE_PIN, 100); //75);
+  analogWrite(TEST_WAVE_PIN, 75);
   serial_debug.println("# Test Pulse On.");
 }
 
