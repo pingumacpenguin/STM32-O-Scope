@@ -43,10 +43,10 @@ Adafruit Libraries released under their specific licenses Copyright (c) 2013 Ada
 
 #if defined TOUCH_SCREEN_AVAILABLE
 #define TOUCH_ORIENTATION  LANDSCAPE
-// UTouch Library
-// http://www.rinkydinkelectronics.com/library.php?id=56
-#include <UTouch.h>
-UTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
+// URTouch Library
+// http://www.rinkydinkelectronics.com/library.php?id=93
+#include <URTouch.h>
+URTouch  myTouch( PB12, PB13, PB14, PB15, PA8);
 #endif
 
 // This makes no sense.. (BUG) but if you don't actually have a touch screen, #undef it here. 
